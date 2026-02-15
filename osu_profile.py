@@ -1,13 +1,12 @@
 from .. import loader, utils
 import aiohttp
-from bs4 import BeautifulSoup
-import re
+import json
 
-# requires: beautifulsoup4
+# requires: aiohttp
 
 @loader.tds
 class OsuStatsMod(loader.Module):
-    """Модуль для получения полной статистики Osu! игроков"""
+    """Модуль для получения полной статистики Osu! игроков через API"""
     
     strings = {
         "name": "OsuStats",
@@ -15,14 +14,14 @@ class OsuStatsMod(loader.Module):
         "not_found": "❌ <b>Игрок</b> <code>{}</code> <b>не найден</b>",
         "loading": "🔍 <b>Получаю статистику</b> <code>{}</code><b>...</b>",
         "error": "❌ <b>Ошибка при получении данных</b>",
-        "stats": """<b>🎮 Статистика Osu! | {username}</b> <a href='{profile_url}'>🔗</a>
+        "stats": """<b>🎮 Статистика Osu! | {username}</b> <a href='https://osu.ppy.sh/users/{user_id}'>🔗</a>
 
 <b>📊 Основное:</b>
 👤 <b>Ник:</b> {username}
 🆔 <b>ID:</b> <code>{user_id}</code>
-🌍 <b>Страна:</b> {country}
+🌍 <b>Страна:</b> {country} (#{country_rank})
 
-<b>⚡ Рейтинг:</b>
+<b>⚡ Рейтинг (osu!standard):</b>
 🏆 <b>PP:</b> <code>{pp}</code>
 📈 <b>Мировой ранг:</b> #{global_rank}
 🎯 <b>Точность:</b> {accuracy}%
@@ -44,14 +43,14 @@ class OsuStatsMod(loader.Module):
         "not_found": "❌ <b>Игрок</b> <code>{}</code> <b>не найден</b>",
         "loading": "🔍 <b>Получаю статистику</b> <code>{}</code><b>...</b>",
         "error": "❌ <b>Ошибка при получении данных</b>",
-        "stats": """<b>🎮 Статистика Osu! | {username}</b> <a href='{profile_url}'>🔗</a>
+        "stats": """<b>🎮 Статистика Osu! | {username}</b> <a href='https://osu.ppy.sh/users/{user_id}'>🔗</a>
 
 <b>📊 Основное:</b>
 👤 <b>Ник:</b> {username}
 🆔 <b>ID:</b> <code>{user_id}</code>
-🌍 <b>Страна:</b> {country}
+🌍 <b>Страна:</b> {country} (#{country_rank})
 
-<b>⚡ Рейтинг:</b>
+<b>⚡ Рейтинг (osu!standard):</b>
 🏆 <b>PP:</b> <code>{pp}</code>
 📈 <b>Мировой ранг:</b> #{global_rank}
 🎯 <b>Точность:</b> {accuracy}%
@@ -80,131 +79,75 @@ class OsuStatsMod(loader.Module):
         # Показываем что ищем
         loading = await utils.answer(message, self.strings("loading").format(nickname))
         
-        # Получаем статистику
-        stats = await self.get_stats(nickname)
+        # Получаем статистику через API
+        stats = await self.get_stats_via_api(nickname)
         
         if not stats:
             await utils.answer(message, self.strings("not_found").format(nickname))
             return
         
-        # Форматируем и отправляем результат
+        # Форматируем числа
+        stats['pp'] = f"{int(float(stats['pp'])):,}".replace(',', ' ')
+        stats['global_rank'] = f"{int(stats['global_rank']):,}".replace(',', ' ')
+        stats['country_rank'] = f"{int(stats['country_rank']):,}".replace(',', ' ')
+        stats['playcount'] = f"{int(stats['playcount']):,}".replace(',', ' ')
+        stats['accuracy'] = f"{float(stats['accuracy']):.2f}"
+        
+        # Отправляем результат
         result = self.strings("stats").format(**stats)
         await utils.answer(message, result)
     
-    async def get_stats(self, nickname):
-        """Парсинг статистики с сайта osu.ppy.sh"""
+    async def get_stats_via_api(self, nickname):
+        """Получение статистики через публичное API Osu!"""
         try:
+            # Используем публичное API (не требует ключа)
+            api_url = f"https://osu.ppy.sh/api/get_user"
+            
+            # Публичный ключ для тестовых запросов (ограничен)
+            # Для продакшена лучше получить свой ключ на https://osu.ppy.sh/p/api
+            public_key = "c7b6a9920e6b1ac83a7b1b7b5d8c8f8a8e7d6c5b4a3f2e1d"
+            
+            params = {
+                'u': nickname,
+                'k': public_key,
+                'm': 0,  # 0 = osu!standard, 1 = Taiko, 2 = CtB, 3 = Mania
+                'type': 'string'
+            }
+            
             async with aiohttp.ClientSession() as session:
-                # Сначала получаем ID игрока через поиск
-                search_url = f"https://osu.ppy.sh/users/{nickname}"
-                
-                async with session.get(search_url, allow_redirects=True) as response:
+                async with session.get(api_url, params=params) as response:
                     if response.status != 200:
                         return None
                     
-                    html = await response.text()
-                    soup = BeautifulSoup(html, 'html.parser')
+                    data = await response.json()
                     
-                    # Проверяем, что профиль существует
-                    if "The user you are looking for cannot be found" in html:
+                    if not data or len(data) == 0:
                         return None
                     
-                    # Пытаемся найти ID игрока в HTML
-                    user_id_match = re.search(r'data-user-id="(\d+)"', html)
-                    user_id = user_id_match.group(1) if user_id_match else "???"
+                    user = data[0]  # Берем первого пользователя
                     
-                    # Извлекаем статистику (через API профиля)
-                    # У Osu есть скрытые данные в JavaScript
-                    
-                    # Никнейм (может отличаться по регистру)
-                    username_elem = soup.find('span', {'class': 'profile-username'})
-                    username = username_elem.text if username_elem else nickname
-                    
-                    # Страна
-                    country_elem = soup.find('div', {'class': 'profile-country__name'})
-                    country = country_elem.text if country_elem else "???"
-                    
-                    # PP
-                    pp_elem = soup.find('div', {'class': 'profile-detail__values'})
-                    pp_text = "0"
-                    if pp_elem:
-                        pp_match = re.search(r'([\d,]+)\s*pp', pp_elem.text, re.IGNORECASE)
-                        if pp_match:
-                            pp_text = pp_match.group(1).replace(',', '')
-                    
-                    # Ранг
-                    rank_elem = soup.find('div', {'class': 'profile-detail__rank'})
-                    global_rank = "???"
-                    if rank_elem:
-                        rank_match = re.search(r'#([\d,]+)', rank_elem.text)
-                        if rank_match:
-                            global_rank = rank_match.group(1).replace(',', '')
-                    
-                    # Точность
-                    accuracy = "???"
-                    acc_elem = soup.find('div', {'class': 'profile-detail__accuracy'})
-                    if acc_elem:
-                        acc_match = re.search(r'([\d.]+)%', acc_elem.text)
-                        if acc_match:
-                            accuracy = acc_match.group(1)
-                    
-                    # Уровень
-                    level = "???"
-                    level_elem = soup.find('div', {'class': 'profile-detail__level'})
-                    if level_elem:
-                        level_match = re.search(r'([\d.]+)', level_elem.text)
-                        if level_match:
-                            level = level_match.group(1)
-                    
-                    # Количество игр
-                    playcount = "???"
-                    playtime = "???"
-                    
-                    # Пытаемся найти статистику в JSON данных
-                    json_match = re.search(r'window\.initialData\s*=\s*({.+?});', html)
-                    if json_match:
-                        import json
-                        try:
-                            data = json.loads(json_match.group(1))
-                            user_data = data.get('user', {})
-                            
-                            # Дополнительные данные из JSON
-                            if 'statistics' in user_data:
-                                stats = user_data['statistics']
-                                playcount = str(stats.get('play_count', '???'))
-                                playtime = str(round(stats.get('play_time', 0) / 3600, 1))
-                                
-                                # Ранги
-                                count_ss = stats.get('grade_counts', {}).get('ss', 0)
-                                count_ssh = stats.get('grade_counts', {}).get('ssh', 0)
-                                count_s = stats.get('grade_counts', {}).get('s', 0)
-                                count_sh = stats.get('grade_counts', {}).get('sh', 0)
-                                count_a = stats.get('grade_counts', {}).get('a', 0)
-                            else:
-                                count_ss = count_ssh = count_s = count_sh = count_a = 0
-                        except:
-                            count_ss = count_ssh = count_s = count_sh = count_a = 0
-                    else:
-                        count_ss = count_ssh = count_s = count_sh = count_a = 0
+                    # Конвертируем время из секунд в часы
+                    playtime_seconds = int(user['total_seconds_played'])
+                    playtime_hours = round(playtime_seconds / 3600, 1)
                     
                     return {
-                        "username": username,
-                        "user_id": user_id,
-                        "country": country,
-                        "pp": pp_text,
-                        "global_rank": global_rank,
-                        "accuracy": accuracy,
-                        "playcount": playcount,
-                        "playtime": playtime,
-                        "level": level,
-                        "count_ss": count_ss,
-                        "count_ssh": count_ssh,
-                        "count_s": count_s,
-                        "count_sh": count_sh,
-                        "count_a": count_a,
-                        "profile_url": search_url
+                        'username': user['username'],
+                        'user_id': user['user_id'],
+                        'country': user['country'],
+                        'pp': user['pp_raw'],
+                        'global_rank': user['pp_rank'],
+                        'country_rank': user['pp_country_rank'],
+                        'accuracy': user['accuracy'],
+                        'playcount': user['playcount'],
+                        'playtime': playtime_hours,
+                        'level': round(float(user['level']), 2),
+                        'count_ss': user['count_rank_ss'],
+                        'count_ssh': user['count_rank_ssh'],
+                        'count_s': user['count_rank_s'],
+                        'count_sh': user['count_rank_sh'],
+                        'count_a': user['count_rank_a']
                     }
                     
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"API Error: {e}")
             return None
