@@ -1,12 +1,12 @@
 from .. import loader, utils
 import aiohttp
-import json
+import re
 
 # requires: aiohttp
 
 @loader.tds
 class OsuStatsMod(loader.Module):
-    """Модуль для получения полной статистики Osu! игроков через API"""
+    """Модуль для получения статистики Osu! игроков"""
     
     strings = {
         "name": "OsuStats",
@@ -14,27 +14,16 @@ class OsuStatsMod(loader.Module):
         "not_found": "❌ <b>Игрок</b> <code>{}</code> <b>не найден</b>",
         "loading": "🔍 <b>Получаю статистику</b> <code>{}</code><b>...</b>",
         "error": "❌ <b>Ошибка при получении данных</b>",
-        "stats": """<b>🎮 Статистика Osu! | {username}</b> <a href='https://osu.ppy.sh/users/{user_id}'>🔗</a>
+        "stats": """<b>🎮 Osu! профиль: {username}</b> <a href='https://osu.ppy.sh/users/{username}'>🔗</a>
 
-<b>📊 Основное:</b>
-👤 <b>Ник:</b> {username}
-🆔 <b>ID:</b> <code>{user_id}</code>
-🌍 <b>Страна:</b> {country} (#{country_rank})
-
-<b>⚡ Рейтинг (osu!standard):</b>
+<b>📊 Статистика (osu!standard):</b>
 🏆 <b>PP:</b> <code>{pp}</code>
-📈 <b>Мировой ранг:</b> #{global_rank}
+📈 <b>Мировой ранг:</b> #{rank}
 🎯 <b>Точность:</b> {accuracy}%
+▶️ <b>Сыграно карт:</b> {playcount}
+⏰ <b>Уровень:</b> {level}
 
-<b>🎮 Статистика игр:</b>
-▶️ <b>Сыграно:</b> {playcount}
-⏰ <b>Время в игре:</b> {playtime} ч
-👑 <b>Уровень:</b> {level}
-
-<b>🏅 Ранги:</b>
-💯 <b>SS:</b> {count_ss}  |  <b>SSH:</b> {count_ssh}
-🌟 <b>S:</b> {count_s}  |  <b>SH:</b> {count_sh}
-💚 <b>A:</b> {count_a}"""
+💯 <b>SS:</b> {ss}  |  <b>S:</b> {s}  |  <b>A:</b> {a}"""
     }
     
     strings_ru = {
@@ -43,31 +32,20 @@ class OsuStatsMod(loader.Module):
         "not_found": "❌ <b>Игрок</b> <code>{}</code> <b>не найден</b>",
         "loading": "🔍 <b>Получаю статистику</b> <code>{}</code><b>...</b>",
         "error": "❌ <b>Ошибка при получении данных</b>",
-        "stats": """<b>🎮 Статистика Osu! | {username}</b> <a href='https://osu.ppy.sh/users/{user_id}'>🔗</a>
+        "stats": """<b>🎮 Профиль Osu!: {username}</b> <a href='https://osu.ppy.sh/users/{username}'>🔗</a>
 
-<b>📊 Основное:</b>
-👤 <b>Ник:</b> {username}
-🆔 <b>ID:</b> <code>{user_id}</code>
-🌍 <b>Страна:</b> {country} (#{country_rank})
-
-<b>⚡ Рейтинг (osu!standard):</b>
+<b>📊 Статистика (osu!standard):</b>
 🏆 <b>PP:</b> <code>{pp}</code>
-📈 <b>Мировой ранг:</b> #{global_rank}
+📈 <b>Мировой ранг:</b> #{rank}
 🎯 <b>Точность:</b> {accuracy}%
+▶️ <b>Сыграно карт:</b> {playcount}
+⏰ <b>Уровень:</b> {level}
 
-<b>🎮 Статистика игр:</b>
-▶️ <b>Сыграно:</b> {playcount}
-⏰ <b>Время в игре:</b> {playtime} ч
-👑 <b>Уровень:</b> {level}
-
-<b>🏅 Ранги:</b>
-💯 <b>SS:</b> {count_ss}  |  <b>SSH:</b> {count_ssh}
-🌟 <b>S:</b> {count_s}  |  <b>SH:</b> {count_sh}
-💚 <b>A:</b> {count_a}"""
+💯 <b>SS:</b> {ss}  |  <b>S:</b> {s}  |  <b>A:</b> {a}"""
     }
     
     async def osucmd(self, message):
-        """.osu <ник> - Получить полную статистику игрока Osu!"""
+        """.osu <ник> - Получить статистику игрока Osu!"""
         args = utils.get_args_raw(message)
         
         if not args:
@@ -77,77 +55,91 @@ class OsuStatsMod(loader.Module):
         nickname = args.strip()
         
         # Показываем что ищем
-        loading = await utils.answer(message, self.strings("loading").format(nickname))
+        await utils.answer(message, self.strings("loading").format(nickname))
         
-        # Получаем статистику через API
-        stats = await self.get_stats_via_api(nickname)
+        # Получаем статистику
+        stats = await self.parse_profile(nickname)
         
         if not stats:
             await utils.answer(message, self.strings("not_found").format(nickname))
             return
         
-        # Форматируем числа
-        stats['pp'] = f"{int(float(stats['pp'])):,}".replace(',', ' ')
-        stats['global_rank'] = f"{int(stats['global_rank']):,}".replace(',', ' ')
-        stats['country_rank'] = f"{int(stats['country_rank']):,}".replace(',', ' ')
-        stats['playcount'] = f"{int(stats['playcount']):,}".replace(',', ' ')
-        stats['accuracy'] = f"{float(stats['accuracy']):.2f}"
-        
         # Отправляем результат
-        result = self.strings("stats").format(**stats)
+        result = self.strings("stats").format(
+            username=nickname,
+            pp=stats.get('pp', '???'),
+            rank=stats.get('rank', '???'),
+            accuracy=stats.get('accuracy', '???'),
+            playcount=stats.get('playcount', '???'),
+            level=stats.get('level', '???'),
+            ss=stats.get('ss', '0'),
+            s=stats.get('s', '0'),
+            a=stats.get('a', '0')
+        )
+        
         await utils.answer(message, result)
     
-    async def get_stats_via_api(self, nickname):
-        """Получение статистики через публичное API Osu!"""
+    async def parse_profile(self, nickname):
+        """Парсинг профиля Osu!"""
         try:
-            # Используем публичное API (не требует ключа)
-            api_url = f"https://osu.ppy.sh/api/get_user"
+            url = f"https://osu.ppy.sh/users/{nickcome}"
             
-            # Публичный ключ для тестовых запросов (ограничен)
-            # Для продакшена лучше получить свой ключ на https://osu.ppy.sh/p/api
-            public_key = "c7b6a9920e6b1ac83a7b1b7b5d8c8f8a8e7d6c5b4a3f2e1d"
-            
-            params = {
-                'u': nickname,
-                'k': public_key,
-                'm': 0,  # 0 = osu!standard, 1 = Taiko, 2 = CtB, 3 = Mania
-                'type': 'string'
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
             
             async with aiohttp.ClientSession() as session:
-                async with session.get(api_url, params=params) as response:
+                async with session.get(url, headers=headers, allow_redirects=True) as response:
                     if response.status != 200:
                         return None
                     
-                    data = await response.json()
+                    html = await response.text()
                     
-                    if not data or len(data) == 0:
+                    # Проверяем, что профиль существует
+                    if "The user you are looking for cannot be found" in html:
                         return None
                     
-                    user = data[0]  # Берем первого пользователя
+                    stats = {}
                     
-                    # Конвертируем время из секунд в часы
-                    playtime_seconds = int(user['total_seconds_played'])
-                    playtime_hours = round(playtime_seconds / 3600, 1)
+                    # Ищем PP
+                    pp_match = re.search(r'<div[^>]*class="value"[^>]*>([\d,]+)\s*pp', html, re.IGNORECASE)
+                    if pp_match:
+                        stats['pp'] = pp_match.group(1)
                     
-                    return {
-                        'username': user['username'],
-                        'user_id': user['user_id'],
-                        'country': user['country'],
-                        'pp': user['pp_raw'],
-                        'global_rank': user['pp_rank'],
-                        'country_rank': user['pp_country_rank'],
-                        'accuracy': user['accuracy'],
-                        'playcount': user['playcount'],
-                        'playtime': playtime_hours,
-                        'level': round(float(user['level']), 2),
-                        'count_ss': user['count_rank_ss'],
-                        'count_ssh': user['count_rank_ssh'],
-                        'count_s': user['count_rank_s'],
-                        'count_sh': user['count_rank_sh'],
-                        'count_a': user['count_rank_a']
-                    }
+                    # Ищем ранг
+                    rank_match = re.search(r'#([\d,]+)[^<>]*<[^<>]*class="rank-value', html)
+                    if rank_match:
+                        stats['rank'] = rank_match.group(1)
+                    
+                    # Ищем точность
+                    acc_match = re.search(r'([\d.]+)%[^<>]*<[^<>]*class="accuracy-value', html)
+                    if acc_match:
+                        stats['accuracy'] = acc_match.group(1)
+                    
+                    # Ищем количество сыгранных карт
+                    playcount_match = re.search(r'Play count[^<>]*<[^<>]*>([\d,]+)', html, re.IGNORECASE)
+                    if playcount_match:
+                        stats['playcount'] = playcount_match.group(1)
+                    
+                    # Ищем уровень
+                    level_match = re.search(r'Level[^<>]*<[^<>]*>([\d.]+)', html, re.IGNORECASE)
+                    if level_match:
+                        stats['level'] = level_match.group(1)
+                    
+                    # Ищем ранги (SS, S, A)
+                    ss_match = re.search(r'SS[^<>]*<[^<>]*>(\d+)', html)
+                    s_match = re.search(r'S[^<>]*<[^<>]*>(\d+)', html)
+                    a_match = re.search(r'A[^<>]*<[^<>]*>(\d+)', html)
+                    
+                    if ss_match:
+                        stats['ss'] = ss_match.group(1)
+                    if s_match:
+                        stats['s'] = s_match.group(1)
+                    if a_match:
+                        stats['a'] = a_match.group(1)
+                    
+                    return stats if stats else None
                     
         except Exception as e:
-            print(f"API Error: {e}")
+            print(f"Parse error: {e}")
             return None
