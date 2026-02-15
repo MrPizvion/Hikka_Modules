@@ -128,7 +128,7 @@ class WeatherMod(loader.Module):
             ),
             loader.ConfigValue(
                 "api_key",
-                "b1b15e88fa797225412429c1c50c122a1",  # Публичный клюп (ограничен)
+                "b1b15e88fa797225412429c1c50c122a1",  # Публичный ключ (ограничен)
                 "API ключ OpenWeatherMap (получить на openweathermap.org/api)",
                 validator=loader.validators.String()
             ),
@@ -215,7 +215,8 @@ class WeatherMod(loader.Module):
             }
             
             async with aiohttp.ClientSession() as session:
-                async with session.get(geo_url, params=geo_params) resp:
+                # ИСПРАВЛЕНО: добавил "as resp"
+                async with session.get(geo_url, params=geo_params) as resp:
                     if resp.status != 200:
                         await utils.answer(message, self.strings("error").format(f"HTTP {resp.status}"))
                         return
@@ -241,6 +242,7 @@ class WeatherMod(loader.Module):
                     "lang": self.config["lang"]
                 }
                 
+                # ИСПРАВЛЕНО: добавил "as resp"
                 async with session.get(weather_url, params=weather_params) as resp:
                     if resp.status != 200:
                         await utils.answer(message, self.strings("error").format(f"HTTP {resp.status}"))
@@ -259,6 +261,7 @@ class WeatherMod(loader.Module):
                     "cnt": 5  # 5 дней
                 }
                 
+                # ИСПРАВЛЕНО: добавил "as resp"
                 async with session.get(forecast_url, params=forecast_params) as resp:
                     if resp.status != 200:
                         forecast_data = {"list": []}
@@ -304,9 +307,6 @@ class WeatherMod(loader.Module):
             
             # Карта
             map_url = f"https://openweathermap.org/weathermap?zoom=10&lat={lat}&lon={lon}"
-            
-            # Единицы измерения
-            temp_unit = "°C" if self.config["units"] == "metric" else "°F"
             
             result = self.strings("weather").format(
                 city=city_name,
