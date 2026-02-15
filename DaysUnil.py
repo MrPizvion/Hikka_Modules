@@ -6,38 +6,72 @@ logger = logging.getLogger(__name__)
 
 @loader.tds
 class DaysUntilMod(loader.Module):
-    """Модуль для отслеживания дней до дня рождения 🎂"""
+    """Модуль для отслеживания дней до событий 🎂"""
     
     strings = {
         "name": "DaysUntil",
         "no_args": "🚫 <b>Укажи команду</b>\nПример: <code>.days 100</code> или <code>.bd</code>",
         "no_date": "🚫 <b>Сначала настрой дату рождения!</b>",
-        "days_left": """<b>🎂 До дня рождения осталось:</b>
-<b>{days} дней</b>
-
-⏰ {hours} ч {minutes} мин {seconds} сек""",
-        "days_custom": """<b>⏳ До {event}:</b>
-<b>{days} дней</b>
-
-⏰ {hours} ч {minutes} мин {seconds} сек""",
-        "days_saved": "✅ <b>Сохранено:</b> {days} дней до {event}",
-        "list_header": "<b>📋 События:</b>\n",
-        "list_item": "{num}. {event} — {days} дн\n",
-        "no_events": "📭 <b>Нет событий</b>",
+        "days_left": "<b>🎂 До дня рождения:</b> <code>{days} дней</code>",
+        "days_custom": "<b>⏳ До {event}:</b> <code>{days} дней</code>",
+        "days_saved": "✅ <b>Сохранено:</b> {event} — {days} дней",
+        "list_header": "<b>📋 Список событий:</b>\n",
+        "list_item": "{num}. {event} — <code>{days} дней</code>\n",
+        "no_events": "📭 <b>Нет сохранённых событий</b>",
         "error": "❌ {0}",
         "deleted": "✅ <b>Удалено:</b> {event}",
         "cleared": "🗑️ <b>Все события удалены</b>",
         "set_birthday": "🎂 <b>Выбери месяц рождения:</b>",
         "set_day": "🎂 <b>Выбери день рождения:</b>",
-        "birthday_set": "✅ <b>Дата рождения сохранена: {day:02d}.{month:02d}</b>",
+        "birthday_set": "✅ <b>Дата рождения: {day:02d}.{month:02d}</b>",
         "help": """<b>🎂 DaysUntil</b>
 
 <code>.bd</code> - дней до ДР
-<code>.days N</code> - дней до N
-<code>.days НГ 30</code> - сохранить
-<code>.list</code> - список
-<code>.del N</code> - удалить
-<code>.setbd</code> - настроить ДР"""
+<code>.days число</code> - дней до N дней
+<code>.days название число</code> - сохранить событие
+<code>.list</code> - список событий
+<code>.del N</code> - удалить событие
+<code>.setbd</code> - настроить ДР
+<code>.clear</code> - очистить всё
+
+<b>✨ Примеры:</b>
+<code>.days 100</code>
+<code>.days Маша 45</code>
+<code>.days Петя 30</code>
+<code>.list</code>"""
+    }
+    
+    strings_ru = {
+        "name": "DaysUntil",
+        "no_args": "🚫 <b>Укажи команду</b>\nПример: <code>.days 100</code> или <code>.bd</code>",
+        "no_date": "🚫 <b>Сначала настрой дату рождения!</b>",
+        "days_left": "<b>🎂 До дня рождения:</b> <code>{days} дней</code>",
+        "days_custom": "<b>⏳ До {event}:</b> <code>{days} дней</code>",
+        "days_saved": "✅ <b>Сохранено:</b> {event} — {days} дней",
+        "list_header": "<b>📋 Список событий:</b>\n",
+        "list_item": "{num}. {event} — <code>{days} дней</code>\n",
+        "no_events": "📭 <b>Нет сохранённых событий</b>",
+        "error": "❌ {0}",
+        "deleted": "✅ <b>Удалено:</b> {event}",
+        "cleared": "🗑️ <b>Все события удалены</b>",
+        "set_birthday": "🎂 <b>Выбери месяц рождения:</b>",
+        "set_day": "🎂 <b>Выбери день рождения:</b>",
+        "birthday_set": "✅ <b>Дата рождения: {day:02d}.{month:02d}</b>",
+        "help": """<b>🎂 DaysUntil</b>
+
+<code>.bd</code> - дней до ДР
+<code>.days число</code> - дней до N дней
+<code>.days название число</code> - сохранить событие
+<code>.list</code> - список событий
+<code>.del N</code> - удалить событие
+<code>.setbd</code> - настроить ДР
+<code>.clear</code> - очистить всё
+
+<b>✨ Примеры:</b>
+<code>.days 100</code>
+<code>.days Маша 45</code>
+<code>.days Петя 30</code>
+<code>.list</code>"""
     }
     
     months = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн",
@@ -65,16 +99,13 @@ class DaysUntilMod(loader.Module):
             bd = datetime.datetime(now.year + 1, month, day)
         
         delta = bd - now
-        h = delta.seconds // 3600
-        m = (delta.seconds % 3600) // 60
-        s = delta.seconds % 60
         
         await utils.answer(message, self.strings("days_left").format(
-            days=delta.days, hours=h, minutes=m, seconds=s
+            days=delta.days
         ))
     
     async def setbdcmd(self, message):
-        """Настроить дату рождения через инлайн"""
+        """Настроить дату рождения"""
         await self.inline.form(
             text=self.strings("set_birthday"),
             message=message,
@@ -88,12 +119,27 @@ class DaysUntilMod(loader.Module):
             await utils.answer(message, self.strings("no_args"))
             return
         
+        # Если только число
         if len(args) == 1:
             try:
                 days = int(args[0])
-                await self._show_days(message, days)
+                now = datetime.datetime.now()
+                future = now + datetime.timedelta(days=days)
+                delta = future - now
+                
+                if days % 10 == 1 and days % 100 != 11:
+                    word = "дня"
+                else:
+                    word = "дней"
+                
+                await utils.answer(message, self.strings("days_custom").format(
+                    event=f"{days} {word}",
+                    days=delta.days
+                ))
             except:
                 await utils.answer(message, self.strings("error").format("Не число"))
+        
+        # Если название и число
         else:
             try:
                 days = int(args[-1])
@@ -107,58 +153,39 @@ class DaysUntilMod(loader.Module):
                 await utils.answer(message, self.strings("error").format("Ошибка"))
     
     async def listcmd(self, message):
-        """Список событий"""
+        """Список всех событий"""
         if not self.events:
             await utils.answer(message, self.strings("no_events"))
             return
         
         text = self.strings("list_header")
-        for i, (e, d) in enumerate(self.events.items(), 1):
-            text += self.strings("list_item").format(num=i, event=e, days=d)
+        for i, (name, days) in enumerate(self.events.items(), 1):
+            text += self.strings("list_item").format(num=i, event=name, days=days)
         await utils.answer(message, text)
     
     async def delcmd(self, message):
-        """Удалить событие"""
+        """Удалить событие по номеру"""
         args = utils.get_args_raw(message)
         if not args or not args.isdigit():
-            await utils.answer(message, "🚫 Укажи номер")
+            await utils.answer(message, "🚫 <b>Укажи номер из списка .list</b>")
             return
         
         idx = int(args) - 1
         items = list(self.events.items())
         if idx < 0 or idx >= len(items):
-            await utils.answer(message, "❌ Неверный номер")
+            await utils.answer(message, "❌ <b>Неверный номер</b>")
             return
         
-        name, _ = items[idx]
+        name, days = items[idx]
         del self.events[name]
         self.db.set("DaysUntil", "events", self.events)
         await utils.answer(message, self.strings("deleted").format(event=name))
     
     async def clearcmd(self, message):
-        """Очистить всё"""
+        """Очистить все события"""
         self.events = {}
         self.db.set("DaysUntil", "events", {})
         await utils.answer(message, self.strings("cleared"))
-    
-    async def _show_days(self, message, target: int):
-        """Показать дней до N"""
-        now = datetime.datetime.now()
-        future = now + datetime.timedelta(days=target)
-        delta = future - now
-        h = delta.seconds // 3600
-        m = (delta.seconds % 3600) // 60
-        s = delta.seconds % 60
-        
-        if target % 10 == 1 and target % 100 != 11:
-            word = "дня"
-        else:
-            word = "дней"
-        
-        await utils.answer(message, self.strings("days_custom").format(
-            event=f"{target} {word}",
-            days=delta.days, hours=h, minutes=m, seconds=s
-        ))
     
     def _month_buttons(self):
         """Кнопки выбора месяца"""
@@ -177,7 +204,7 @@ class DaysUntilMod(loader.Module):
         return rows
     
     async def _month_cb(self, call, month: int):
-        """Обработчик выбора месяца"""
+        """Выбор месяца"""
         await call.edit(
             text=self.strings("set_day"),
             reply_markup=self._day_buttons(month)
@@ -203,10 +230,9 @@ class DaysUntilMod(loader.Module):
         return rows
     
     async def _day_cb(self, call, month: int, day: int):
-        """Обработчик выбора дня"""
+        """Выбор дня"""
         self.config["month"] = month
         self.config["day"] = day
-        
         await call.edit(
             text=self.strings("birthday_set").format(day=day, month=month)
         )
