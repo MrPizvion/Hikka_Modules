@@ -4,12 +4,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# requires: dateutil
-from dateutil.relativedelta import relativedelta
-
 @loader.tds
 class DaysUntilMod(loader.Module):
-    """Модуль для отслеживания дней до дня рождения 🎂"""
+    """Модуль для отслеживания дней до дня рождения и других событий 🎂"""
     
     strings = {
         "name": "DaysUntil",
@@ -42,6 +39,10 @@ class DaysUntilMod(loader.Module):
         "list_item": "{num}. {event} — <b>{days} дней</b>\n",
         "no_events": "📭 <b>Нет сохранённых событий</b>",
         "error": "❌ <b>Ошибка:</b> {}",
+        "deleted": "✅ <b>Удалено:</b> {event} — {days} дней",
+        "cleared": "🗑️ <b>Все события удалены</b>",
+        "invalid_number": "🚫 <b>Укажи номер события из списка</b>\nПример: <code>.del 2</code>",
+        "wrong_number": "❌ <b>Неверный номер события</b>",
         "help": """<b>🎂 DaysUntil Module</b>
 
 <b>Основные команды:</b>
@@ -93,6 +94,10 @@ class DaysUntilMod(loader.Module):
         "list_item": "{num}. {event} — <b>{days} дней</b>\n",
         "no_events": "📭 <b>Нет сохранённых событий</b>",
         "error": "❌ <b>Ошибка:</b> {}",
+        "deleted": "✅ <b>Удалено:</b> {event} — {days} дней",
+        "cleared": "🗑️ <b>Все события удалены</b>",
+        "invalid_number": "🚫 <b>Укажи номер события из списка</b>\nПример: <code>.del 2</code>",
+        "wrong_number": "❌ <b>Неверный номер события</b>",
         "help": """<b>🎂 DaysUntil Module</b>
 
 <b>Основные команды:</b>
@@ -132,11 +137,12 @@ class DaysUntilMod(loader.Module):
     async def client_ready(self, client, db):
         self.client = client
         self.db = db
-        # Инициализируем хранилище событий
+        # Загружаем сохранённые события
         self.events = self.db.get("DaysUntil", "events", {})
+        logger.info(f"DaysUntil: Загружено {len(self.events)} событий")
     
     async def bdcmd(self, message):
-        """Показать дней до дня рождения"""
+        """<ник> [:<режим>] - Показать дней до дня рождения"""
         day = self.config["birthday_day"]
         month = self.config["birthday_month"]
         
@@ -163,13 +169,20 @@ class DaysUntilMod(loader.Module):
         seconds = delta.seconds % 60
         
         # Прогресс-бар
-        total_days = 365
         if birthday.year > current_year:
-            total_days = (datetime.datetime(current_year + 1, 1, 1) - datetime.datetime(current_year, month, day)).days
+            # ДР в следующем году
+            year_start = datetime.datetime(current_year + 1, 1, 1)
+            year_end = datetime.datetime(current_year + 1, 12, 31)
+            total_days = (year_end - year_start).days
+            days_passed = (birthday - year_start).days
+            percent = int((days_passed / total_days) * 100)
         else:
-            total_days = (birthday - datetime.datetime(current_year, 1, 1)).days
+            # ДР в этом году
+            year_start = datetime.datetime(current_year, 1, 1)
+            total_days = 365
+            days_passed = (birthday - year_start).days
+            percent = int((days_passed / total_days) * 100)
         
-        percent = int(((total_days - days) / total_days) * 100)
         progress_bar = self._make_progress_bar(percent)
         
         await utils.answer(message, self.strings("days_left").format(
@@ -191,22 +204,24 @@ class DaysUntilMod(loader.Module):
             await utils.answer(message, self.strings("no_args"))
             return
         
-        # Парсим аргументы
+        # Если только число
         if len(args) == 1:
-            # Только число
             try:
                 days = int(args[0])
                 await self._show_days_until(message, days)
             except ValueError:
                 await utils.answer(message, self.strings("error").format("Неверный формат числа"))
         
+        # Если название и число
         elif len(args) >= 2:
-            # Название и число
             try:
                 days = int(args[-1])
                 event_name = " ".join(args[:-1])
+                
+                # Сохраняем событие
                 self.events[event_name] = days
                 self.db.set("DaysUntil", "events", self.events)
+                logger.info(f"DaysUntil: Сохранено событие '{event_name}' на {days} дней")
                 
                 await utils.answer(message, self.strings("days_saved").format(
                     event=event_name,
@@ -233,27 +248,32 @@ class DaysUntilMod(loader.Module):
         args = utils.get_args_raw(message)
         
         if not args or not args.isdigit():
-            await utils.answer(message, "🚫 <b>Укажи номер события из списка</b>\nПример: <code>.del 2</code>")
+            await utils.answer(message, self.strings("invalid_number"))
             return
         
         index = int(args) - 1
         events_list = list(self.events.items())
         
         if index < 0 or index >= len(events_list):
-            await utils.answer(message, "❌ <b>Неверный номер события</b>")
+            await utils.answer(message, self.strings("wrong_number"))
             return
         
         event_name, days = events_list[index]
         del self.events[event_name]
         self.db.set("DaysUntil", "events", self.events)
+        logger.info(f"DaysUntil: Удалено событие '{event_name}'")
         
-        await utils.answer(message, f"✅ <b>Удалено:</b> {event_name} — {days} дней")
+        await utils.answer(message, self.strings("deleted").format(
+            event=event_name,
+            days=days
+        ))
     
     async def clearcmd(self, message):
         """Очистить все сохранённые события"""
         self.events = {}
         self.db.set("DaysUntil", "events", {})
-        await utils.answer(message, "🗑️ <b>Все события удалены</b>")
+        logger.info("DaysUntil: Все события удалены")
+        await utils.answer(message, self.strings("cleared"))
     
     async def daysuntilhelpcmd(self, message):
         """Показать помощь по модулю"""
@@ -266,7 +286,7 @@ class DaysUntilMod(loader.Module):
         # Дата через N дней
         future_date = now + datetime.timedelta(days=target_days)
         
-        # Разница (просто для красоты)
+        # Разница
         delta = future_date - now
         
         days = delta.days
@@ -274,8 +294,16 @@ class DaysUntilMod(loader.Module):
         minutes = (delta.seconds % 3600) // 60
         seconds = delta.seconds % 60
         
+        # Определяем окончание
+        if target_days % 10 == 1 and target_days % 100 != 11:
+            word = "дня"
+        elif 2 <= target_days % 10 <= 4 and (target_days % 100 < 10 or target_days % 100 >= 20):
+            word = "дней"
+        else:
+            word = "дней"
+        
         await utils.answer(message, self.strings("days_custom").format(
-            event=f"дня {target_days}",
+            event=f"{target_days} {word}",
             days=days,
             hours=hours,
             minutes=minutes,
@@ -283,13 +311,12 @@ class DaysUntilMod(loader.Module):
         ))
     
     def _make_progress_bar(self, percent: int, length: int = 10) -> str:
-        """Создаёт красивый прогресс-бар"""
+        """Создаёт прогресс-бар"""
         filled = int(percent / 100 * length)
         empty = length - filled
-        
-        bar = "█" * filled + "░" * empty
-        return bar
+        return "█" * filled + "░" * empty
 
     async def on_unload(self):
         """Сохраняем данные при выгрузке"""
         self.db.set("DaysUntil", "events", self.events)
+        logger.info("DaysUntil: Данные сохранены")
