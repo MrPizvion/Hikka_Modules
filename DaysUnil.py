@@ -6,317 +6,210 @@ logger = logging.getLogger(__name__)
 
 @loader.tds
 class DaysUntilMod(loader.Module):
-    """Модуль для отслеживания дней до дня рождения и других событий 🎂"""
+    """Модуль для отслеживания дней до дня рождения 🎂"""
     
     strings = {
         "name": "DaysUntil",
         "no_args": "🚫 <b>Укажи команду</b>\nПример: <code>.days 100</code> или <code>.bd</code>",
-        "no_date": "🚫 <b>Сначала настрой дату рождения в конфиге!</b>\nИспользуй <code>.config DaysUntil</code>",
-        "days_left": """<b>🎂 Дней до дня рождения: {days}</b>
+        "no_date": "🚫 <b>Сначала настрой дату рождения!</b>",
+        "days_left": """<b>🎂 До дня рождения осталось:</b>
+<b>{days} дней</b>
 
-📅 <b>Точное время:</b>
-⏰ {days} дней
-🕐 {hours} часов
-⏱️ {minutes} минут
-⚡ {seconds} секунд
+⏰ {hours} ч {minutes} мин {seconds} сек""",
+        "days_custom": """<b>⏳ До {event}:</b>
+<b>{days} дней</b>
 
-📊 <b>Прогресс:</b>
-{progress_bar} {percent}%
-
-🎯 <b>Дата рождения:</b> {birthday}
-📆 <b>Текущая дата:</b> {today}""",
-
-        "days_custom": """<b>⏳ До {event}: {days} дней</b>
-
-📅 <b>Точное время:</b>
-⏰ {days} дней
-🕐 {hours} часов
-⏱️ {minutes} минут
-⚡ {seconds} секунд""",
-
+⏰ {hours} ч {minutes} мин {seconds} сек""",
         "days_saved": "✅ <b>Сохранено:</b> {days} дней до {event}",
-        "list_header": "<b>📋 Список сохранённых событий:</b>\n\n",
-        "list_item": "{num}. {event} — <b>{days} дней</b>\n",
-        "no_events": "📭 <b>Нет сохранённых событий</b>",
-        "error": "❌ <b>Ошибка:</b> {}",
-        "deleted": "✅ <b>Удалено:</b> {event} — {days} дней",
+        "list_header": "<b>📋 События:</b>\n",
+        "list_item": "{num}. {event} — {days} дн\n",
+        "no_events": "📭 <b>Нет событий</b>",
+        "error": "❌ {0}",
+        "deleted": "✅ <b>Удалено:</b> {event}",
         "cleared": "🗑️ <b>Все события удалены</b>",
-        "invalid_number": "🚫 <b>Укажи номер события из списка</b>\nПример: <code>.del 2</code>",
-        "wrong_number": "❌ <b>Неверный номер события</b>",
-        "help": """<b>🎂 DaysUntil Module</b>
+        "set_birthday": "🎂 <b>Выбери месяц рождения:</b>",
+        "set_day": "🎂 <b>Выбери день рождения:</b>",
+        "birthday_set": "✅ <b>Дата рождения сохранена: {day:02d}.{month:02d}</b>",
+        "help": """<b>🎂 DaysUntil</b>
 
-<b>Основные команды:</b>
-<code>.bd</code> - показать дней до ДР
-<code>.days N</code> - показать дней до N-дней
-<code>.days название N</code> - сохранить событие
-<code>.list</code> - список всех событий
-<code>.del НОМЕР</code> - удалить событие
-<code>.clear</code> - очистить все
-
-<b>⚙️ Настройка ДР в конфиге:</b>
-<code>.config DaysUntil</code>
-
-<b>✨ Примеры:</b>
-<code>.days 100</code>
-<code>.days НГ 30</code>
-<code>.list</code>
-<code>.del 2</code>"""
+<code>.bd</code> - дней до ДР
+<code>.days N</code> - дней до N
+<code>.days НГ 30</code> - сохранить
+<code>.list</code> - список
+<code>.del N</code> - удалить
+<code>.setbd</code> - настроить ДР"""
     }
     
-    strings_ru = {
-        "name": "DaysUntil",
-        "no_args": "🚫 <b>Укажи команду</b>\nПример: <code>.days 100</code> или <code>.bd</code>",
-        "no_date": "🚫 <b>Сначала настрой дату рождения в конфиге!</b>\nИспользуй <code>.config DaysUntil</code>",
-        "days_left": """<b>🎂 Дней до дня рождения: {days}</b>
-
-📅 <b>Точное время:</b>
-⏰ {days} дней
-🕐 {hours} часов
-⏱️ {minutes} минут
-⚡ {seconds} секунд
-
-📊 <b>Прогресс:</b>
-{progress_bar} {percent}%
-
-🎯 <b>Дата рождения:</b> {birthday}
-📆 <b>Текущая дата:</b> {today}""",
-
-        "days_custom": """<b>⏳ До {event}: {days} дней</b>
-
-📅 <b>Точное время:</b>
-⏰ {days} дней
-🕐 {hours} часов
-⏱️ {minutes} минут
-⚡ {seconds} секунд""",
-
-        "days_saved": "✅ <b>Сохранено:</b> {days} дней до {event}",
-        "list_header": "<b>📋 Список сохранённых событий:</b>\n\n",
-        "list_item": "{num}. {event} — <b>{days} дней</b>\n",
-        "no_events": "📭 <b>Нет сохранённых событий</b>",
-        "error": "❌ <b>Ошибка:</b> {}",
-        "deleted": "✅ <b>Удалено:</b> {event} — {days} дней",
-        "cleared": "🗑️ <b>Все события удалены</b>",
-        "invalid_number": "🚫 <b>Укажи номер события из списка</b>\nПример: <code>.del 2</code>",
-        "wrong_number": "❌ <b>Неверный номер события</b>",
-        "help": """<b>🎂 DaysUntil Module</b>
-
-<b>Основные команды:</b>
-<code>.bd</code> - показать дней до ДР
-<code>.days N</code> - показать дней до N-дней
-<code>.days название N</code> - сохранить событие
-<code>.list</code> - список всех событий
-<code>.del НОМЕР</code> - удалить событие
-<code>.clear</code> - очистить все
-
-<b>⚙️ Настройка ДР в конфиге:</b>
-<code>.config DaysUntil</code>
-
-<b>✨ Примеры:</b>
-<code>.days 100</code>
-<code>.days НГ 30</code>
-<code>.list</code>
-<code>.del 2</code>"""
-    }
+    months = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн",
+              "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"]
     
     def __init__(self):
         self.config = loader.ModuleConfig(
-            loader.ConfigValue(
-                "birthday_day",
-                1,
-                "День рождения (1-31)",
-                validator=loader.validators.Integer(minimum=1, maximum=31)
-            ),
-            loader.ConfigValue(
-                "birthday_month",
-                1,
-                "Месяц рождения (1-12)",
-                validator=loader.validators.Integer(minimum=1, maximum=12)
-            ),
+            loader.ConfigValue("day", 1, "День рождения"),
+            loader.ConfigValue("month", 1, "Месяц рождения"),
         )
     
     async def client_ready(self, client, db):
         self.client = client
         self.db = db
-        # Загружаем сохранённые события
         self.events = self.db.get("DaysUntil", "events", {})
-        logger.info(f"DaysUntil: Загружено {len(self.events)} событий")
     
     async def bdcmd(self, message):
-        """<ник> [:<режим>] - Показать дней до дня рождения"""
-        day = self.config["birthday_day"]
-        month = self.config["birthday_month"]
-        
-        if not day or not month:
-            await utils.answer(message, self.strings("no_date"))
-            return
+        """Показать дней до ДР"""
+        day = self.config["day"]
+        month = self.config["month"]
         
         now = datetime.datetime.now()
-        current_year = now.year
+        bd = datetime.datetime(now.year, month, day)
+        if bd < now:
+            bd = datetime.datetime(now.year + 1, month, day)
         
-        # Дата рождения в этом году
-        birthday = datetime.datetime(current_year, month, day)
-        
-        # Если ДР уже прошёл в этом году, берём следующий год
-        if birthday < now:
-            birthday = datetime.datetime(current_year + 1, month, day)
-        
-        # Разница
-        delta = birthday - now
-        
-        days = delta.days
-        hours = delta.seconds // 3600
-        minutes = (delta.seconds % 3600) // 60
-        seconds = delta.seconds % 60
-        
-        # Прогресс-бар
-        if birthday.year > current_year:
-            # ДР в следующем году
-            year_start = datetime.datetime(current_year + 1, 1, 1)
-            year_end = datetime.datetime(current_year + 1, 12, 31)
-            total_days = (year_end - year_start).days
-            days_passed = (birthday - year_start).days
-            percent = int((days_passed / total_days) * 100)
-        else:
-            # ДР в этом году
-            year_start = datetime.datetime(current_year, 1, 1)
-            total_days = 365
-            days_passed = (birthday - year_start).days
-            percent = int((days_passed / total_days) * 100)
-        
-        progress_bar = self._make_progress_bar(percent)
+        delta = bd - now
+        h = delta.seconds // 3600
+        m = (delta.seconds % 3600) // 60
+        s = delta.seconds % 60
         
         await utils.answer(message, self.strings("days_left").format(
-            days=days,
-            hours=hours,
-            minutes=minutes,
-            seconds=seconds,
-            progress_bar=progress_bar,
-            percent=percent,
-            birthday=f"{day:02d}.{month:02d}",
-            today=now.strftime("%d.%m.%Y %H:%M")
+            days=delta.days, hours=h, minutes=m, seconds=s
         ))
     
+    async def setbdcmd(self, message):
+        """Настроить дату рождения через инлайн"""
+        await self.inline.form(
+            text=self.strings("set_birthday"),
+            message=message,
+            reply_markup=self._month_buttons()
+        )
+    
     async def dayscmd(self, message):
-        """.days [название] <число> - Показать дней до N-дней или сохранить событие"""
+        """Сохранить или показать событие"""
         args = utils.get_args_raw(message).split()
-        
         if not args:
             await utils.answer(message, self.strings("no_args"))
             return
         
-        # Если только число
         if len(args) == 1:
             try:
                 days = int(args[0])
-                await self._show_days_until(message, days)
-            except ValueError:
-                await utils.answer(message, self.strings("error").format("Неверный формат числа"))
-        
-        # Если название и число
-        elif len(args) >= 2:
+                await self._show_days(message, days)
+            except:
+                await utils.answer(message, self.strings("error").format("Не число"))
+        else:
             try:
                 days = int(args[-1])
-                event_name = " ".join(args[:-1])
-                
-                # Сохраняем событие
-                self.events[event_name] = days
+                name = " ".join(args[:-1])
+                self.events[name] = days
                 self.db.set("DaysUntil", "events", self.events)
-                logger.info(f"DaysUntil: Сохранено событие '{event_name}' на {days} дней")
-                
                 await utils.answer(message, self.strings("days_saved").format(
-                    event=event_name,
-                    days=days
+                    event=name, days=days
                 ))
-            except ValueError:
-                await utils.answer(message, self.strings("error").format("Неверный формат числа"))
+            except:
+                await utils.answer(message, self.strings("error").format("Ошибка"))
     
     async def listcmd(self, message):
-        """Показать список всех сохранённых событий"""
+        """Список событий"""
         if not self.events:
             await utils.answer(message, self.strings("no_events"))
             return
         
         text = self.strings("list_header")
-        for i, (event, days) in enumerate(self.events.items(), 1):
-            text += self.strings("list_item").format(num=i, event=event, days=days)
-        
-        text += "\n<b>💡 Используй:</b> <code>.del НОМЕР</code> чтобы удалить"
+        for i, (e, d) in enumerate(self.events.items(), 1):
+            text += self.strings("list_item").format(num=i, event=e, days=d)
         await utils.answer(message, text)
     
     async def delcmd(self, message):
-        """.del <номер> - Удалить событие из списка"""
+        """Удалить событие"""
         args = utils.get_args_raw(message)
-        
         if not args or not args.isdigit():
-            await utils.answer(message, self.strings("invalid_number"))
+            await utils.answer(message, "🚫 Укажи номер")
             return
         
-        index = int(args) - 1
-        events_list = list(self.events.items())
-        
-        if index < 0 or index >= len(events_list):
-            await utils.answer(message, self.strings("wrong_number"))
+        idx = int(args) - 1
+        items = list(self.events.items())
+        if idx < 0 or idx >= len(items):
+            await utils.answer(message, "❌ Неверный номер")
             return
         
-        event_name, days = events_list[index]
-        del self.events[event_name]
+        name, _ = items[idx]
+        del self.events[name]
         self.db.set("DaysUntil", "events", self.events)
-        logger.info(f"DaysUntil: Удалено событие '{event_name}'")
-        
-        await utils.answer(message, self.strings("deleted").format(
-            event=event_name,
-            days=days
-        ))
+        await utils.answer(message, self.strings("deleted").format(event=name))
     
     async def clearcmd(self, message):
-        """Очистить все сохранённые события"""
+        """Очистить всё"""
         self.events = {}
         self.db.set("DaysUntil", "events", {})
-        logger.info("DaysUntil: Все события удалены")
         await utils.answer(message, self.strings("cleared"))
     
-    async def daysuntilhelpcmd(self, message):
-        """Показать помощь по модулю"""
-        await utils.answer(message, self.strings("help"))
-    
-    async def _show_days_until(self, message, target_days: int):
-        """Показать дней до N-дней"""
+    async def _show_days(self, message, target: int):
+        """Показать дней до N"""
         now = datetime.datetime.now()
+        future = now + datetime.timedelta(days=target)
+        delta = future - now
+        h = delta.seconds // 3600
+        m = (delta.seconds % 3600) // 60
+        s = delta.seconds % 60
         
-        # Дата через N дней
-        future_date = now + datetime.timedelta(days=target_days)
-        
-        # Разница
-        delta = future_date - now
-        
-        days = delta.days
-        hours = delta.seconds // 3600
-        minutes = (delta.seconds % 3600) // 60
-        seconds = delta.seconds % 60
-        
-        # Определяем окончание
-        if target_days % 10 == 1 and target_days % 100 != 11:
+        if target % 10 == 1 and target % 100 != 11:
             word = "дня"
-        elif 2 <= target_days % 10 <= 4 and (target_days % 100 < 10 or target_days % 100 >= 20):
-            word = "дней"
         else:
             word = "дней"
         
         await utils.answer(message, self.strings("days_custom").format(
-            event=f"{target_days} {word}",
-            days=days,
-            hours=hours,
-            minutes=minutes,
-            seconds=seconds
+            event=f"{target} {word}",
+            days=delta.days, hours=h, minutes=m, seconds=s
         ))
     
-    def _make_progress_bar(self, percent: int, length: int = 10) -> str:
-        """Создаёт прогресс-бар"""
-        filled = int(percent / 100 * length)
-        empty = length - filled
-        return "█" * filled + "░" * empty
-
+    def _month_buttons(self):
+        """Кнопки выбора месяца"""
+        rows = []
+        for i in range(0, 12, 3):
+            row = []
+            for j in range(3):
+                if i + j < 12:
+                    month_num = i + j + 1
+                    row.append({
+                        "text": self.months[i + j],
+                        "callback": self._month_cb,
+                        "args": (month_num,)
+                    })
+            rows.append(row)
+        return rows
+    
+    async def _month_cb(self, call, month: int):
+        """Обработчик выбора месяца"""
+        await call.edit(
+            text=self.strings("set_day"),
+            reply_markup=self._day_buttons(month)
+        )
+    
+    def _day_buttons(self, month: int):
+        """Кнопки выбора дня"""
+        days_in_month = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        max_days = days_in_month[month - 1]
+        
+        rows = []
+        for i in range(0, max_days, 5):
+            row = []
+            for j in range(5):
+                if i + j < max_days:
+                    day = i + j + 1
+                    row.append({
+                        "text": str(day),
+                        "callback": self._day_cb,
+                        "args": (month, day)
+                    })
+            rows.append(row)
+        return rows
+    
+    async def _day_cb(self, call, month: int, day: int):
+        """Обработчик выбора дня"""
+        self.config["month"] = month
+        self.config["day"] = day
+        
+        await call.edit(
+            text=self.strings("birthday_set").format(day=day, month=month)
+        )
+    
     async def on_unload(self):
-        """Сохраняем данные при выгрузке"""
         self.db.set("DaysUntil", "events", self.events)
-        logger.info("DaysUntil: Данные сохранены")
