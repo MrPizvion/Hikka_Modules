@@ -9,97 +9,90 @@ logger = logging.getLogger(__name__)
 # requires: aiohttp
 
 @loader.tds
-class OsuFullMod(loader.Module):
-    """Полноценный модуль для osu! с поиском профилей и карт"""
+class OsuProfileMod(loader.Module):
+    """Полноценный модуль для osu! с красивыми эмодзи 🌟"""
     
     strings = {
-        "name": "OsuFull",
+        "name": "OsuProfile",
         "no_nick": "🚫 <b>Укажи никнейм игрока</b>\nПример: <code>.osu peppy</code>",
         "no_query": "🚫 <b>Укажи запрос</b>\nПример: <code>.map The Big Black</code>",
         "not_found": "❌ <b>Игрок</b> <code>{}</code> <b>не найден</b>",
         "map_not_found": "❌ <b>Карта</b> <code>{}</code> <b>не найдена</b>",
-        "loading": "🔍 <b>Загрузка...</b>",
-        "error": "❌ <b>Ошибка:</b> {}",
-        "log_error": "⚠️ <b>Ошибка в модуле OsuFull:</b>\n<code>{}</code>",
+        "loading": "🔄 <b>Загрузка...</b>",
+        "error": "💥 <b>Ошибка:</b> {}",
         
-        # Статистика игрока
-        "user_stats": """<b>🎮 Osu! профиль: {username}</b> <a href='https://osu.ppy.sh/users/{user_id}'>🔗</a>
+        # Статистика игрока с красивыми эмодзи
+        "user_stats": """<b>🌟 Osu! профиль: {username}</b> <a href='https://osu.ppy.sh/users/{user_id}'>🔗</a>
 
-<b>📊 Статистика ({mode}):</b>
-🔥 <b>PP:</b> <code>{pp}</code>
-🏆 <b>Мировой ранг:</b> #{global_rank}
-🌍 <b>Ранг в стране ({country}):</b> #{country_rank}
-🎯 <b>Точность:</b> {accuracy}%
-🎮 <b>Сыграно карт:</b> {playcount}
-⏰ <b>Время в игре:</b> {playtime} ч
-👑 <b>Уровень:</b> {level}
-🏅 <b>Ранги:</b> SS:{ss} S:{s} A:{a}""",
+╔══════════════════════╗
+<b>📊 Статистика [{mode}]</b>
+╠══════════════════════╣
+╠ 🔥 <b>PP:</b> <code>{pp}</code>
+╠ 🏆 <b>Мировой ранг:</b> #{global_rank}
+╠ 🌍 <b>Ранг в стране [{country}]:</b> #{country_rank}
+╠ 🎯 <b>Точность:</b> {accuracy}%
+╠ 🎮 <b>Сыграно карт:</b> {playcount}
+╠ ⏰ <b>Время в игре:</b> {playtime} ч
+╠ 👑 <b>Уровень:</b> {level}
+╚ 🏅 <b>Ранги:</b> 💯{ss} ✨{s} 🅰️{a}""",
 
-        # Информация о карте
+        # Информация о карте с красивыми эмодзи
         "map_info": """<b>🎵 {artist} - {title}</b> <a href='https://osu.ppy.sh/s/{mapset_id}'>🔗</a>
 
-👤 <b>Маппер:</b> <a href='https://osu.ppy.sh/users/{creator_id}'>{creator}</a>
-📊 <b>Статус:</b> {status}
-📈 <b>Статистика:</b> {plays} игр, {favourites} в избранном
-🎥 <b>Видео:</b> {video}
+╔══════════════════════╗
+<b>📋 Информация о карте</b>
+╠══════════════════════╣
+╠ 👤 <b>Маппер:</b> <a href='https://osu.ppy.sh/users/{creator_id}'>{creator}</a>
+╠ 📊 <b>Статус:</b> {status}
+╠ 📈 <b>Статистика:</b> 👁️{plays} ❤️{favourites}
+╠ 🎥 <b>Видео:</b> {video}
+╚ ⭐ <b>Сложностей:</b> {diff_count}
 
-<b>⭐ Сложности:</b>
-{diffs}"""
-    }
-    
-    strings_ru = {
-        "name": "OsuFull",
-        "no_nick": "🚫 <b>Укажи никнейм игрока</b>\nПример: <code>.osu peppy</code>",
-        "no_query": "🚫 <b>Укажи запрос</b>\nПример: <code>.map The Big Black</code>",
-        "not_found": "❌ <b>Игрок</b> <code>{}</code> <b>не найден</b>",
-        "map_not_found": "❌ <b>Карта</b> <code>{}</code> <b>не найдена</b>",
-        "loading": "🔍 <b>Загрузка...</b>",
-        "error": "❌ <b>Ошибка:</b> {}",
-        "log_error": "⚠️ <b>Ошибка в модуле OsuFull:</b>\n<code>{}</code>",
-        
-        "user_stats": """<b>🎮 Профиль Osu!: {username}</b> <a href='https://osu.ppy.sh/users/{user_id}'>🔗</a>
-
-<b>📊 Статистика ({mode}):</b>
-🔥 <b>PP:</b> <code>{pp}</code>
-🏆 <b>Мировой ранг:</b> #{global_rank}
-🌍 <b>Ранг в стране ({country}):</b> #{country_rank}
-🎯 <b>Точность:</b> {accuracy}%
-🎮 <b>Сыграно карт:</b> {playcount}
-⏰ <b>Время в игре:</b> {playtime} ч
-👑 <b>Уровень:</b> {level}
-🏅 <b>Ранги:</b> SS:{ss} S:{s} A:{a}""",
-
-        "map_info": """<b>🎵 {artist} - {title}</b> <a href='https://osu.ppy.sh/s/{mapset_id}'>🔗</a>
-
-👤 <b>Маппер:</b> <a href='https://osu.ppy.sh/users/{creator_id}'>{creator}</a>
-📊 <b>Статус:</b> {status}
-📈 <b>Статистика:</b> {plays} игр, {favourites} в избранном
-🎥 <b>Видео:</b> {video}
-
-<b>⭐ Сложности:</b>
+<b>🎯 Сложности:</b>
 {diffs}""",
         
+        # Помощь
+        "help_text": """<b>🎮 OsuProfile Module - Красивые эмодзи!</b>
+
+╔══════════════════════╗
+<b>📋 Доступные команды:</b>
+╠══════════════════════╣
+╠ 🔍 <code>.osu ник</code> - статистика игрока
+╠ 🔍 <code>.osu ник:taiko</code> - статистика в Taiko
+╠ 🔍 <code>.osu ник:mania</code> - статистика в Mania
+╠ 🎵 <code>.map название</code> - поиск карты
+╠ 🎵 <code>.map ID</code> - карта по ID
+╚ ❓ <code>.osuhelp</code> - это сообщение
+
+<b>✨ Примеры:</b>
+<code>.osu peppy</code>
+<code>.osu cookiezi:mania</code>
+<code>.map The Big Black</code>
+<code>.map 774532</code>
+
+<b>🎯 Режимы:</b> osu, taiko, catch, mania""",
+        
         # Статусы карт
-        "status_graveyard": "Заброшенная",
-        "status_wip": "В разработке",
-        "status_pending": "В ожидании",
-        "status_ranked": "Рейтинговая",
-        "status_approved": "Одобренная",
-        "status_qualified": "Квалифицированная",
-        "status_loved": "Любимая",
+        "status_graveyard": "🪦 Заброшенная",
+        "status_wip": "🔧 В разработке",
+        "status_pending": "⏳ В ожидании",
+        "status_ranked": "✅ Рейтинговая",
+        "status_approved": "👍 Одобренная",
+        "status_qualified": "🎯 Квалифицированная",
+        "status_loved": "❤️ Любимая",
         
         # Режимы игры
-        "mode_osu": "osu!",
-        "mode_taiko": "Taiko",
-        "mode_catch": "Catch",
-        "mode_mania": "Mania",
+        "mode_osu": "🔴 osu!",
+        "mode_taiko": "🥁 Taiko",
+        "mode_catch": "🍏 Catch",
+        "mode_mania": "🎹 Mania",
         
         "video_yes": "✅ Есть",
-        "video_no": "❌ Нет"
+        "video_no": "❌ Нет",
     }
     
     # Константы
-    API_KEY_V1 = "3e0c7c9baf734a70f780f2960332d825c50c4690"  # Публичный ключ
+    API_KEY_V1 = "3e0c7c9baf734a70f780f2960332d825c50c4690"
     API_URL_V1 = "https://osu.ppy.sh/api/get_user"
     API_BEATMAP_V1 = "https://osu.ppy.sh/api/get_beatmaps"
     
@@ -116,7 +109,7 @@ class OsuFullMod(loader.Module):
             return
         
         # Парсим режим если есть
-        mode = 0  # osu! по умолчанию
+        mode = 0
         nickname = args
         
         if ':' in args:
@@ -141,7 +134,7 @@ class OsuFullMod(loader.Module):
                 await utils.answer(message, self.strings("not_found").format(nickname))
                 return
             
-            # Форматируем числа
+            # Форматируем числа с разделителями
             stats['pp'] = f"{float(stats['pp']):,.0f}".replace(',', ' ')
             stats['global_rank'] = f"{int(stats['global_rank']):,}".replace(',', ' ')
             stats['country_rank'] = f"{int(stats['country_rank']):,}".replace(',', ' ')
@@ -149,7 +142,7 @@ class OsuFullMod(loader.Module):
             stats['playcount'] = f"{int(stats['playcount']):,}".replace(',', ' ')
             
             # Название режима
-            mode_names = ["osu!", "Taiko", "Catch", "Mania"]
+            mode_names = ["🔴 osu!", "🥁 Taiko", "🍏 Catch", "🎹 Mania"]
             stats['mode'] = mode_names[mode]
             
             result = self.strings("user_stats").format(**stats)
@@ -183,6 +176,10 @@ class OsuFullMod(loader.Module):
         except Exception as e:
             logger.exception(f"Ошибка: {e}")
             await utils.answer(message, self.strings("error").format(str(e)))
+    
+    async def osuhelpcmd(self, message):
+        """Показать помощь по командам"""
+        await utils.answer(message, self.strings("help_text"))
     
     async def get_user_stats(self, nickname: str, mode: int = 0) -> dict:
         """Получение статистики игрока через API"""
@@ -227,16 +224,15 @@ class OsuFullMod(loader.Module):
     
     async def get_map_info(self, query: str) -> dict:
         """Получение информации о карте"""
-        # Если запрос - число, ищем по ID
         if query.isdigit():
             params = {
                 'k': self.API_KEY_V1,
-                's': query  # beatmapset_id
+                's': query
             }
         else:
             params = {
                 'k': self.API_KEY_V1,
-                'q': query  # поиск по названию
+                'q': query
             }
         
         async with aiohttp.ClientSession() as session:
@@ -262,7 +258,7 @@ class OsuFullMod(loader.Module):
                 beatmaps = maps[first_set_id]
                 first_map = beatmaps[0]
                 
-                # Статус карты
+                # Статус карты с эмодзи
                 status_map = {
                     '-2': 'status_graveyard',
                     '-1': 'status_wip',
@@ -278,8 +274,10 @@ class OsuFullMod(loader.Module):
                 # Видео
                 video = self.strings('video_yes') if first_map.get('video') == '1' else self.strings('video_no')
                 
-                # Сложности
+                # Сложности с эмодзи
                 diffs = []
+                mode_emojis = ['🔴', '🥁', '🍏', '🎹']
+                
                 for b in sorted(beatmaps, key=lambda x: float(x.get('difficultyrating', 0))):
                     mode = int(b.get('mode', 0))
                     stars = float(b.get('difficultyrating', 0))
@@ -290,8 +288,22 @@ class OsuFullMod(loader.Module):
                     minutes = length // 60
                     seconds = length % 60
                     
-                    mode_emoji = ['🔴', '🥁', '🍏', '🎹'][mode] if mode < 4 else '🎵'
-                    diffs.append(f"{mode_emoji} {b.get('version', 'N/A')} | ★{stars:.2f} | {minutes}:{seconds:02d} | {bpm:.0f} BPM")
+                    # Эмодзи для сложности в зависимости от звезд
+                    if stars < 2:
+                        star_emoji = "⭐"
+                    elif stars < 3:
+                        star_emoji = "🌟🌟"
+                    elif stars < 4:
+                        star_emoji = "🌟🌟🌟"
+                    elif stars < 5:
+                        star_emoji = "🌟🌟🌟🌟"
+                    elif stars < 6:
+                        star_emoji = "🔥🔥🔥"
+                    else:
+                        star_emoji = "💀💀💀"
+                    
+                    mode_emoji = mode_emojis[mode] if mode < 4 else '🎵'
+                    diffs.append(f"{mode_emoji} {b.get('version', 'N/A')} {star_emoji} {stars:.2f} | ⏱️ {minutes}:{seconds:02d} | 🎵 {bpm:.0f} BPM")
                 
                 # Общая статистика
                 total_plays = sum(int(b.get('playcount', 0)) for b in beatmaps)
@@ -306,5 +318,6 @@ class OsuFullMod(loader.Module):
                     'plays': f"{total_plays:,}".replace(',', ' '),
                     'favourites': f"{int(first_map.get('favourite_count', 0)):,}".replace(',', ' '),
                     'video': video,
-                    'diffs': '\n'.join(diffs[:10])  # Показываем первые 10 сложностей
-        }
+                    'diff_count': len(beatmaps),
+                    'diffs': '\n'.join(diffs[:10])
+                }
