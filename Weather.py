@@ -118,30 +118,6 @@ class WeatherMod(loader.Module):
 ╚════════════════════════════════╝"""
     }
     
-    # Эмодзи для погоды
-    weather_emojis = {
-        "clear": "☀️",
-        "sunny": "☀️",
-        "cloudy": "☁️",
-        "partly cloudy": "⛅",
-        "overcast": "☁️",
-        "rain": "🌧️",
-        "light rain": "🌦️",
-        "heavy rain": "🌧️",
-        "thunderstorm": "⛈️",
-        "snow": "❄️",
-        "light snow": "🌨️",
-        "mist": "🌫️",
-        "fog": "🌫️",
-        "ясно": "☀️",
-        "облачно": "☁️",
-        "пасмурно": "☁️",
-        "небольшая облачность": "⛅",
-        "дождь": "🌧️",
-        "снег": "❄️",
-        "туман": "🌫️"
-    }
-    
     def __init__(self):
         self.config = loader.ModuleConfig(
             loader.ConfigValue(
@@ -208,79 +184,182 @@ class WeatherMod(loader.Module):
         await utils.answer(message, self.strings("help"))
     
     async def _get_weather(self, message, city: str):
-        """Получение погоды с таймаутом и запасным API"""
-        await utils.answer(message, self.strings("loading"))
+        """Получение погоды"""
+        # Отправляем новое сообщение, а не редактируем
+        msg = await utils.answer(message, self.strings("loading"))
         
         try:
-            # Пробуем первый API (wttr.in) с таймаутом
+            # Пробуем wttr.in
             try:
                 data = await self._fetch_wttr(city)
                 if data:
-                    await self._send_weather(message, data, city)
+                    await self._send_weather(msg, data, city)
                     return
             except asyncio.TimeoutError:
-                logger.warning("wttr.in timeout, trying open-meteo...")
+                logger.warning("wttr.in timeout")
             
-            # Если первый не сработал, пробуем второй API
+            # Пробуем open-meteo
             data = await self._fetch_openmeteo(city)
             if data:
-                await self._send_weather(message, data, city)
+                await self._send_weather(msg, data, city)
                 return
             
-            await utils.answer(message, self.strings("not_found").format(city))
+            await utils.answer(msg, self.strings("not_found").format(city))
             
         except Exception as e:
             logger.exception(f"Weather error: {e}")
-            await utils.answer(message, self.strings("error").format(str(e)))
+            await utils.answer(msg, self.strings("error").format(str(e)))
     
     async def _fetch_wttr(self, city: str):
         """Получение погоды через wttr.in"""
         url = f"https://wttr.in/{city}?format=j1"
         
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=10) as resp:
+            async with session.get(url, timeout=15) as resp:
                 if resp.status != 200:
                     return None
                 return await resp.json()
     
     async def _fetch_openmeteo(self, city: str):
-        """Запасной API без ключа"""
-        # Сначала получаем координаты
-        geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={city}&count=1&language=ru"
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.get(geo_url, timeout=10) as resp:
-                if resp.status != 200:
-                    return None
-                
-                geo_data = await resp.json()
-                if not geo_data.get("results"):
-                    return None
-                
-                lat = geo_data["results"][0]["latitude"]
-                lon = geo_data["results"][0]["longitude"]
-                city_name = geo_data["results"][0]["name"]
-                country = geo_data["results"][0].get("country", "")
-                
-                # Получаем погоду
-                weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true&daily=weathercode,temperature_2m_max,temperature_2m_min,sunrise,sunset&timezone=auto"
-                
-                async with session.get(weather_url, timeout=10) as wresp:
-                    if wresp.status != 200:
+        """Запасной API"""
+        try:
+            geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={city}&count=1&language=ru"
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(geo_url, timeout=15) as resp:
+                    if resp.status != 200:
                         return None
                     
-                    weather_data = await wresp.json()
+                    geo_data = await resp.json()
+                    if not geo_data.get("results"):
+                        return None
                     
-                    # Преобразуем в формат как у wttr
-                    return self._convert_openmeteo(weather_data, city_name, country, lat, lon)
+                    lat = geo_data["results"][0]["latitude"]
+                    lon = geo_data["results"][0]["longitude"]
+                    city_name = geo_data["results"][0]["name"]
+                    country = geo_data["results"][0].get("country", "")
+                    
+                    weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=auto"
+                    
+                    async with session.get(weather_url, timeout=15) as wresp:
+                        if wresp.status != 200:
+                            return None
+                        
+                        weather_data = await wresp.json()
+                        
+                        return {
+                            "city": city_name,
+                            "country": country,
+                            "lat": lat,
+                            "lon": lon,
+                            "current": weather_data.get("current_weather", {}),
+                            "daily": weather_data.get("daily", {})
+                        }
+        except:
+            return None
     
-    def _convert_openmeteo(self, data: dict, city: str, country: str, lat: float, lon: float):
-        """Конвертирует данные open-meteo в формат как у wttr"""
-        current = data.get("current_weather", {})
-        daily = data.get("daily", {})
-        
-        # Коды погоды в эмодзи
-        weather_codes = {
+    async def _send_weather(self, msg, data, original_city):
+        """Отправка погоды"""
+        try:
+            if "current_condition" in data:  # wttr формат
+                current = data["current_condition"][0]
+                weather_desc = current["weatherDesc"][0]["value"].lower()
+                area = data["nearest_area"][0]
+                city_name = area["areaName"][0]["value"]
+                country = area["country"][0]["value"]
+                lat = area["latitude"]
+                lon = area["longitude"]
+                
+                temp = int(current["temp_C"])
+                feels_like = int(current["FeelsLikeC"])
+                humidity = current["humidity"]
+                wind_speed = float(current["windspeedKmph"]) / 3.6
+                pressure = current["pressure"]
+                sunrise = current["sunrise"]
+                sunset = current["sunset"]
+                
+                forecast_lines = []
+                weather_data = data.get("weather", [])
+                
+                for day in weather_data[:5]:
+                    date = datetime.datetime.strptime(day["date"], "%Y-%m-%d").strftime("%d.%m")
+                    temp_min = int(day["mintempC"])
+                    temp_max = int(day["maxtempC"])
+                    hour_data = day.get("hourly", [{}])[0]
+                    desc_day = hour_data.get("weatherDesc", [{}])[0].get("value", "").lower()
+                    emoji = self._get_weather_emoji(desc_day)
+                    
+                    forecast_lines.append(self.strings("forecast_day").format(
+                        emoji=emoji,
+                        date=date,
+                        temp_min=temp_min,
+                        temp_max=temp_max,
+                        desc=desc_day.capitalize()
+                    ))
+                
+                emoji_now = self._get_weather_emoji(weather_desc)
+                
+            else:  # open-meteo формат
+                city_name = data["city"]
+                country = data["country"]
+                lat = data["lat"]
+                lon = data["lon"]
+                current = data["current"]
+                daily = data["daily"]
+                
+                temp = round(current["temperature"])
+                feels_like = round(current["temperature"])
+                weather_desc = self._get_weather_desc(current.get("weathercode", 0))
+                humidity = "?"
+                wind_speed = current.get("windspeed", 0) / 3.6
+                pressure = "?"
+                sunrise = "??:??"
+                sunset = "??:??"
+                
+                forecast_lines = []
+                for i in range(min(5, len(daily.get("time", [])))):
+                    date = datetime.datetime.strptime(daily["time"][i], "%Y-%m-%d").strftime("%d.%m")
+                    temp_min = round(daily["temperature_2m_min"][i])
+                    temp_max = round(daily["temperature_2m_max"][i])
+                    desc_day = self._get_weather_desc(daily["weathercode"][i])
+                    emoji = self._get_weather_emoji(desc_day.lower())
+                    
+                    forecast_lines.append(self.strings("forecast_day").format(
+                        emoji=emoji,
+                        date=date,
+                        temp_min=temp_min,
+                        temp_max=temp_max,
+                        desc=desc_day
+                    ))
+                
+                emoji_now = self._get_weather_emoji(weather_desc.lower())
+            
+            forecast_text = "".join(forecast_lines) if forecast_lines else "║ ❌ Нет данных\n"
+            map_url = f"https://www.google.com/maps/@{lat},{lon},10z"
+            
+            result = self.strings("weather").format(
+                city=city_name.upper(),
+                country=country,
+                map_url=map_url,
+                temp=temp,
+                feels_like=feels_like,
+                description=f"{emoji_now} {weather_desc.capitalize()}",
+                humidity=humidity,
+                wind_speed=round(wind_speed, 1),
+                pressure=pressure,
+                sunrise=sunrise,
+                sunset=sunset,
+                forecast=forecast_text
+            )
+            
+            await utils.answer(msg, result)
+            
+        except Exception as e:
+            await utils.answer(msg, self.strings("error").format(str(e)))
+    
+    def _get_weather_desc(self, code: int) -> str:
+        """Код погоды в текст"""
+        codes = {
             0: "Ясно",
             1: "Преимущественно ясно",
             2: "Переменная облачность",
@@ -290,161 +369,38 @@ class WeatherMod(loader.Module):
             51: "Легкая морось",
             53: "Морось",
             55: "Сильная морось",
-            56: "Легкая ледяная морось",
-            57: "Ледяная морось",
             61: "Небольшой дождь",
             63: "Дождь",
             65: "Сильный дождь",
-            66: "Ледяной дождь",
-            67: "Сильный ледяной дождь",
             71: "Небольшой снег",
             73: "Снег",
             75: "Сильный снег",
-            77: "Снежная крупа",
             80: "Небольшой ливень",
             81: "Ливень",
             82: "Сильный ливень",
-            85: "Небольшой снегопад",
-            86: "Снегопад",
             95: "Гроза",
             96: "Гроза с градом",
-            99: "Гроза с сильным градом"
+            99: "Сильная гроза"
         }
-        
-        # Текущая погода
-        weather_code = current.get("weathercode", 0)
-        desc = weather_codes.get(weather_code, "Неизвестно")
-        
-        # Прогноз
-        forecast = []
-        for i in range(min(5, len(daily.get("time", [])))):
-            forecast.append({
-                "date": daily["time"][i],
-                "temp_min": daily["temperature_2m_min"][i],
-                "temp_max": daily["temperature_2m_max"][i],
-                "desc": weather_codes.get(daily["weathercode"][i], "Неизвестно")
-            })
-        
-        return {
-            "city": city,
-            "country": country,
-            "lat": lat,
-            "lon": lon,
-            "current": {
-                "temp": current.get("temperature", 0),
-                "feels_like": current.get("temperature", 0),
-                "desc": desc,
-                "humidity": 0,  # open-meteo не даёт влажность в бесплатной версии
-                "wind_speed": current.get("windspeed", 0) / 3.6,  # км/ч -> м/с
-                "pressure": 0,
-                "sunrise": daily.get("sunrise", [""])[0][11:16] if daily.get("sunrise") else "??:??",
-                "sunset": daily.get("sunset", [""])[0][11:16] if daily.get("sunset") else "??:??"
-            },
-            "forecast": forecast
-        }
-    
-    async def _send_weather(self, message, data, original_city):
-        """Отправка погоды"""
-        if "current_condition" in data:  # wttr формат
-            current = data["current_condition"][0]
-            weather_desc = current["weatherDesc"][0]["value"].lower()
-            area = data["nearest_area"][0]
-            city_name = area["areaName"][0]["value"]
-            country = area["country"][0]["value"]
-            lat = area["latitude"]
-            lon = area["longitude"]
-            
-            temp = int(current["temp_C"])
-            feels_like = int(current["FeelsLikeC"])
-            humidity = current["humidity"]
-            wind_speed = float(current["windspeedKmph"]) / 3.6
-            pressure = current["pressure"]
-            sunrise = current["sunrise"]
-            sunset = current["sunset"]
-            
-            # Прогноз
-            forecast_lines = []
-            weather_data = data.get("weather", [])
-            
-            for day in weather_data[:5]:
-                date = datetime.datetime.strptime(day["date"], "%Y-%m-%d").strftime("%d.%m")
-                temp_min = int(day["mintempC"])
-                temp_max = int(day["maxtempC"])
-                hour_data = day.get("hourly", [{}])[0]
-                desc_day = hour_data.get("weatherDesc", [{}])[0].get("value", "").lower()
-                emoji = self._get_weather_emoji(desc_day)
-                
-                forecast_lines.append(self.strings("forecast_day").format(
-                    emoji=emoji,
-                    date=date,
-                    temp_min=temp_min,
-                    temp_max=temp_max,
-                    desc=desc_day.capitalize()
-                ))
-            
-            emoji_now = self._get_weather_emoji(weather_desc)
-            
-        else:  # open-meteo формат
-            city_name = data["city"]
-            country = data["country"]
-            lat = data["lat"]
-            lon = data["lon"]
-            current = data["current"]
-            
-            temp = round(current["temp"])
-            feels_like = round(current["feels_like"])
-            weather_desc = current["desc"].lower()
-            humidity = current["humidity"] or "?"
-            wind_speed = current["wind_speed"]
-            pressure = current["pressure"] or "?"
-            sunrise = current["sunrise"]
-            sunset = current["sunset"]
-            
-            # Прогноз
-            forecast_lines = []
-            for day in data["forecast"]:
-                date = datetime.datetime.strptime(day["date"], "%Y-%m-%d").strftime("%d.%m")
-                temp_min = round(day["temp_min"])
-                temp_max = round(day["temp_max"])
-                desc_day = day["desc"].lower()
-                emoji = self._get_weather_emoji(desc_day)
-                
-                forecast_lines.append(self.strings("forecast_day").format(
-                    emoji=emoji,
-                    date=date,
-                    temp_min=temp_min,
-                    temp_max=temp_max,
-                    desc=desc_day.capitalize()
-                ))
-            
-            emoji_now = self._get_weather_emoji(weather_desc)
-        
-        forecast_text = "".join(forecast_lines) if forecast_lines else "║ ❌ Нет данных\n"
-        map_url = f"https://www.google.com/maps/@{lat},{lon},10z"
-        
-        result = self.strings("weather").format(
-            city=city_name.upper(),
-            country=country,
-            map_url=map_url,
-            temp=temp,
-            feels_like=feels_like,
-            description=f"{emoji_now} {weather_desc.capitalize()}",
-            humidity=humidity,
-            wind_speed=round(wind_speed, 1),
-            pressure=pressure,
-            sunrise=sunrise,
-            sunset=sunset,
-            forecast=forecast_text
-        )
-        
-        await utils.answer(message, result)
+        return codes.get(code, "Неизвестно")
     
     def _get_weather_emoji(self, desc: str) -> str:
-        """Выбор эмодзи по описанию"""
-        desc_lower = desc.lower()
+        """Выбор эмодзи"""
+        emojis = {
+            "ясно": "☀️",
+            "солнечно": "☀️",
+            "облач": "☁️",
+            "пасмур": "☁️",
+            "дожд": "🌧️",
+            "ливень": "🌧️",
+            "снег": "❄️",
+            "гроз": "⛈️",
+            "туман": "🌫️",
+            "морос": "🌧️"
+        }
         
-        for key, emoji in self.weather_emojis.items():
+        desc_lower = desc.lower()
+        for key, emoji in emojis.items():
             if key in desc_lower:
                 return emoji
-        
         return "☁️"
