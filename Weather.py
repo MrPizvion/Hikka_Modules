@@ -13,85 +13,109 @@ class WeatherMod(loader.Module):
     
     strings = {
         "name": "Weather",
-        "no_city": "🚫 <b>Укажи город</b>\nПример: <code>.weather Москва</code>",
+        "no_city": "❌ <b>Укажи город</b>\nПример: <code>.weather Москва</code>",
         "not_found": "❌ <b>Город</b> <code>{}</code> <b>не найден</b>",
         "loading": "🔄 <b>Получаю погоду...</b>",
-        "error": "❌ <b>Ошибка:</b> {}",
-        "weather": """<b>⛅ Погода в {city}, {country}</b> <a href='{map_url}'>🗺️</a>
-
-╔══════════════════════╗
-<b>📊 Текущая погода:</b>
-╠══════════════════════╣
-╠ 🌡️ <b>Температура:</b> <code>{temp}°C</code> (ощущается как {feels_like}°C)
-╠ ☁️ <b>Описание:</b> <code>{description}</code>
-╠ 💧 <b>Влажность:</b> <code>{humidity}%</code>
-╠ 💨 <b>Ветер:</b> <code>{wind_speed} м/с</code>
-╠ ☀️ <b>Давление:</b> <code>{pressure} гПа</code>
-╠ 🌅 <b>Восход:</b> <code>{sunrise}</code>
-╚ 🌇 <b>Закат:</b> <code>{sunset}</code>
-
-╔══════════════════════╗
-<b>📅 Прогноз на 5 дней:</b>
-╠══════════════════════╣
+        "error": "💥 <b>Ошибка:</b> {}",
+        "weather": """╔════════════════════════════════╗
+║     <b>⛅ ПОГОДА В {city}</b>     ║
+╠════════════════════════════════╣
+║ 🌍 <b>Страна:</b> {country}
+║ 🏠 <a href='{map_url}'>Показать на карте</a>
+╠════════════════════════════════╣
+║ <b>📊 СЕЙЧАС:</b>
+║ 🌡️ <b>Температура:</b> <code>{temp}°C</code> (ощущается {feels_like}°C)
+║ ☁️ <b>Описание:</b> {description}
+║ 💧 <b>Влажность:</b> <code>{humidity}%</code>
+║ 💨 <b>Ветер:</b> <code>{wind_speed} м/с</code>
+║ ☀️ <b>Давление:</b> <code>{pressure} гПа</code>
+║ 🌅 <b>Восход:</b> <code>{sunrise}</code>
+║ 🌇 <b>Закат:</b> <code>{sunset}</code>
+╠════════════════════════════════╣
+║ <b>📅 ПРОГНОЗ НА 5 ДНЕЙ:</b>
 {forecast}
-╚══════════════════════╝""",
-        "forecast_day": "║ {emoji} <b>{date}:</b> {temp_min}°C — {temp_max}°C, {desc}\n",
-        "help": """<b>⛅ Weather Module</b>
-
-<b>📋 Команды:</b>
-<code>.weather город</code> - погода сейчас + прогноз
-<code>.w город</code> - сокращённая версия
-<code>.setcity город</code> - сохранить город по умолчанию
-<code>.myweather</code> - погода для сохранённого города
-
-<b>✨ Примеры:</b>
-<code>.weather Москва</code>
-<code>.w Лондон</code>
-<code>.setcity Киев</code>
-<code>.myweather</code>"""
+╚════════════════════════════════╝""",
+        "forecast_day": "║ {emoji} <b>{date}:</b> {temp_min}°C — {temp_max}°C\n║    {desc}\n",
+        "help": """╔════════════════════════════════╗
+║     <b>⛅ WEATHER MODULE</b>     ║
+╠════════════════════════════════╣
+║ <b>📋 Команды:</b>
+║ 
+║ <code>.weather город</code>
+║    погода сейчас + прогноз
+║ 
+║ <code>.w город</code>
+║    быстрая погода
+║ 
+║ <code>.setcity город</code>
+║    сохранить город
+║ 
+║ <code>.myweather</code>
+║    погода для сохранённого
+║ 
+║ <code>.weatherhelp</code>
+║    это сообщение
+╠════════════════════════════════╣
+║ <b>✨ Примеры:</b>
+║ <code>.weather Москва</code>
+║ <code>.w Лондон</code>
+║ <code>.setcity Киев</code>
+╚════════════════════════════════╝"""
     }
     
     strings_ru = {
         "name": "Weather",
-        "no_city": "🚫 <b>Укажи город</b>\nПример: <code>.weather Москва</code>",
+        "no_city": "❌ <b>Укажи город</b>\nПример: <code>.weather Москва</code>",
         "not_found": "❌ <b>Город</b> <code>{}</code> <b>не найден</b>",
         "loading": "🔄 <b>Получаю погоду...</b>",
-        "error": "❌ <b>Ошибка:</b> {}",
-        "weather": """<b>⛅ Погода в {city}, {country}</b> <a href='{map_url}'>🗺️</a>
-
-╔══════════════════════╗
-<b>📊 Сейчас:</b>
-╠══════════════════════╣
-╠ 🌡️ <b>Температура:</b> <code>{temp}°C</code> (ощущается {feels_like}°C)
-╠ ☁️ <b>Описание:</b> <code>{description}</code>
-╠ 💧 <b>Влажность:</b> <code>{humidity}%</code>
-╠ 💨 <b>Ветер:</b> <code>{wind_speed} м/с</code>
-╠ ☀️ <b>Давление:</b> <code>{pressure} гПа</code>
-╠ 🌅 <b>Восход:</b> <code>{sunrise}</code>
-╚ 🌇 <b>Закат:</b> <code>{sunset}</code>
-
-╔══════════════════════╗
-<b>📅 Прогноз на 5 дней:</b>
-╠══════════════════════╣
+        "error": "💥 <b>Ошибка:</b> {}",
+        "weather": """╔════════════════════════════════╗
+║     <b>⛅ ПОГОДА В {city}</b>     ║
+╠════════════════════════════════╣
+║ 🌍 <b>Страна:</b> {country}
+║ 🏠 <a href='{map_url}'>Показать на карте</a>
+╠════════════════════════════════╣
+║ <b>📊 СЕЙЧАС:</b>
+║ 🌡️ <b>Температура:</b> <code>{temp}°C</code> (ощущается {feels_like}°C)
+║ ☁️ <b>Описание:</b> {description}
+║ 💧 <b>Влажность:</b> <code>{humidity}%</code>
+║ 💨 <b>Ветер:</b> <code>{wind_speed} м/с</code>
+║ ☀️ <b>Давление:</b> <code>{pressure} гПа</code>
+║ 🌅 <b>Восход:</b> <code>{sunrise}</code>
+║ 🌇 <b>Закат:</b> <code>{sunset}</code>
+╠════════════════════════════════╣
+║ <b>📅 ПРОГНОЗ НА 5 ДНЕЙ:</b>
 {forecast}
-╚══════════════════════╝""",
-        "forecast_day": "║ {emoji} <b>{date}:</b> {temp_min}°C — {temp_max}°C, {desc}\n",
-        "help": """<b>⛅ Weather Module</b>
-
-<b>📋 Команды:</b>
-<code>.weather город</code> - погода сейчас + прогноз
-<code>.w город</code> - сокращённая версия
-<code>.setcity город</code> - сохранить город по умолчанию
-<code>.myweather</code> - погода для сохранённого города
-
-<b>✨ Примеры:</b>
-<code>.weather Москва</code>
-<code>.w Лондон</code>
-<code>.setcity Киев</code>
-<code>.myweather</code>"""
+╚════════════════════════════════╝""",
+        "forecast_day": "║ {emoji} <b>{date}:</b> {temp_min}°C — {temp_max}°C\n║    {desc}\n",
+        "help": """╔════════════════════════════════╗
+║     <b>⛅ WEATHER MODULE</b>     ║
+╠════════════════════════════════╣
+║ <b>📋 Команды:</b>
+║ 
+║ <code>.weather город</code>
+║    погода сейчас + прогноз
+║ 
+║ <code>.w город</code>
+║    быстрая погода
+║ 
+║ <code>.setcity город</code>
+║    сохранить город
+║ 
+║ <code>.myweather</code>
+║    погода для сохранённого
+║ 
+║ <code>.weatherhelp</code>
+║    это сообщение
+╠════════════════════════════════╣
+║ <b>✨ Примеры:</b>
+║ <code>.weather Москва</code>
+║ <code>.w Лондон</code>
+║ <code>.setcity Киев</code>
+╚════════════════════════════════╝"""
     }
     
-    # Эмодзи для описания погоды
+    # Эмодзи для погоды
     weather_emojis = {
         "clear": "☀️",
         "sunny": "☀️",
@@ -115,7 +139,12 @@ class WeatherMod(loader.Module):
         "sand": "💨",
         "ash": "🌋",
         "squall": "💨",
-        "tornado": "🌪️"
+        "tornado": "🌪️",
+        "небольшая облачность": "⛅",
+        "пасмурно": "☁️",
+        "ясно": "☀️",
+        "снег": "❄️",
+        "дождь": "🌧️"
     }
     
     def __init__(self):
@@ -123,25 +152,25 @@ class WeatherMod(loader.Module):
             loader.ConfigValue(
                 "default_city",
                 None,
-                "Город по умолчанию",
+                "🌆 Город по умолчанию",
                 validator=loader.validators.String()
             ),
             loader.ConfigValue(
                 "api_key",
                 "b1b15e88fa797225412429c1c50c122a1",
-                "API ключ OpenWeatherMap",
+                "🔑 API ключ OpenWeatherMap",
                 validator=loader.validators.String()
             ),
             loader.ConfigValue(
                 "units",
                 "metric",
-                "Единицы измерения: metric(°C), imperial(°F)",
+                "📏 Единицы: metric(°C), imperial(°F)",
                 validator=loader.validators.Choice(["metric", "imperial"])
             ),
             loader.ConfigValue(
                 "lang",
                 "ru",
-                "Язык: ru, en, ua",
+                "🗣️ Язык: ru, en, ua",
                 validator=loader.validators.String()
             ),
         )
@@ -181,7 +210,7 @@ class WeatherMod(loader.Module):
         args = utils.get_args_raw(message)
         
         if not args:
-            await utils.answer(message, "🚫 <b>Укажи город</b>")
+            await utils.answer(message, "❌ <b>Укажи город</b>")
             return
         
         city = args.strip()
@@ -192,7 +221,7 @@ class WeatherMod(loader.Module):
     async def myweathercmd(self, message):
         """Погода для сохранённого города"""
         if not self.config["default_city"]:
-            await utils.answer(message, "🚫 <b>Сначала сохрани город через</b> <code>.setcity</code>")
+            await utils.answer(message, "❌ <b>Сначала сохрани город через</b> <code>.setcity</code>")
             return
         
         await self._get_weather(message, self.config["default_city"])
@@ -203,7 +232,7 @@ class WeatherMod(loader.Module):
     
     async def _get_weather(self, message, city: str):
         """Получение погоды"""
-        await utils.answer(message, self.strings("loading"))
+        loading = await utils.answer(message, self.strings("loading"))
         
         try:
             # Получаем координаты города
@@ -297,7 +326,7 @@ class WeatherMod(loader.Module):
                         date=date_str,
                         temp_min=temp_min,
                         temp_max=temp_max,
-                        desc=desc_day
+                        desc=desc_day.capitalize()
                     ))
             
             forecast_text = "".join(forecast_lines) if forecast_lines else "║ ❌ Нет данных\n"
@@ -306,14 +335,14 @@ class WeatherMod(loader.Module):
             map_url = f"https://openweathermap.org/weathermap?zoom=10&lat={lat}&lon={lon}"
             
             result = self.strings("weather").format(
-                city=city_name,
+                city=city_name.upper(),
                 country=country,
                 map_url=map_url,
                 temp=round(weather["main"]["temp"]),
                 feels_like=round(weather["main"]["feels_like"]),
-                description=f"{emoji} {desc}",
+                description=f"{emoji} {desc.capitalize()}",
                 humidity=weather["main"]["humidity"],
-                wind_speed=weather["wind"]["speed"],
+                wind_speed=round(weather["wind"]["speed"], 1),
                 pressure=weather["main"]["pressure"],
                 sunrise=sunrise,
                 sunset=sunset,
@@ -328,6 +357,7 @@ class WeatherMod(loader.Module):
     
     def _get_weather_emoji(self, weather_id: int, desc: str) -> str:
         """Выбор эмодзи по коду погоды"""
+        # По коду
         if weather_id // 100 == 2:
             return "⛈️"
         elif weather_id // 100 == 3:
@@ -349,6 +379,7 @@ class WeatherMod(loader.Module):
         elif weather_id in [803, 804]:
             return "☁️"
         
+        # По описанию
         for key, emoji in self.weather_emojis.items():
             if key in desc:
                 return emoji
