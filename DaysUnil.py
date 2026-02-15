@@ -2,6 +2,7 @@ from .. import loader, utils
 import datetime
 import asyncio
 import logging
+from telethon.tl.functions.account import UpdateProfileRequest
 
 logger = logging.getLogger(__name__)
 
@@ -13,46 +14,60 @@ class DaysUntilMod(loader.Module):
         "name": "DaysUntil",
         "no_date": "🚫 <b>Сначала настрой дату рождения!</b>\nИспользуй <code>.setbd</code>",
         "updated": "✅ <b>Фамилия обновлена:</b> {days} дней",
-        "started": "🔄 <b>Автообновление запущено! Фамилия будет меняться каждый день</b>",
+        "started": "🔄 <b>Автообновление запущено!</b>\nФамилия будет меняться каждый день в 00:01",
         "stopped": "⏹️ <b>Автообновление остановлено</b>",
         "set_birthday": "🎂 <b>Выбери месяц рождения:</b>",
         "set_day": "🎂 <b>Выбери день рождения:</b>",
-        "birthday_set": "✅ <b>Дата рождения: {day:02d}.{month:02d}</b>\n🔄 <b>Фамилия будет обновлена автоматически</b>",
+        "birthday_set": "✅ <b>Дата рождения: {day:02d}.{month:02d}</b>\n👤 <b>Фамилия обновлена:</b> {days} дней",
         "help": """<b>🎂 DaysUntil</b>
 
 <b>📋 Команды:</b>
 <code>.setbd</code> - настроить дату рождения
-<code>.update</code> - обновить фамилию сейчас
-<code>.autoupdate</code> - включить автообновление
-<code>.stop</code> - выключить автообновление
+<code>.upd</code> - обновить фамилию сейчас
+<code>.autobd</code> - включить автообновление
+<code>.stopbd</code> - выключить автообновление
+<code>.bdinfo</code> - показать текущие настройки
 
 <b>✨ Что делает:</b>
 Меняет твою фамилию в профиле на количество дней до ДР
-Пример: "154 дня"
-"""
+Пример: "154 дня" → "153 дня" → "1 день"
+""",
+        "info": """<b>📊 Информация:</b>
+
+🎂 <b>Дата рождения:</b> {day:02d}.{month:02d}
+⏳ <b>Осталось:</b> {days} дней
+🔄 <b>Автообновление:</b> {auto}
+👤 <b>Текущая фамилия:</b> {lastname}"""
     }
     
     strings_ru = {
         "name": "DaysUntil",
         "no_date": "🚫 <b>Сначала настрой дату рождения!</b>\nИспользуй <code>.setbd</code>",
         "updated": "✅ <b>Фамилия обновлена:</b> {days} дней",
-        "started": "🔄 <b>Автообновление запущено! Фамилия будет меняться каждый день</b>",
+        "started": "🔄 <b>Автообновление запущено!</b>\nФамилия будет меняться каждый день в 00:01",
         "stopped": "⏹️ <b>Автообновление остановлено</b>",
         "set_birthday": "🎂 <b>Выбери месяц рождения:</b>",
         "set_day": "🎂 <b>Выбери день рождения:</b>",
-        "birthday_set": "✅ <b>Дата рождения: {day:02d}.{month:02d}</b>\n🔄 <b>Фамилия будет обновлена автоматически</b>",
+        "birthday_set": "✅ <b>Дата рождения: {day:02d}.{month:02d}</b>\n👤 <b>Фамилия обновлена:</b> {days} дней",
         "help": """<b>🎂 DaysUntil</b>
 
 <b>📋 Команды:</b>
 <code>.setbd</code> - настроить дату рождения
-<code>.update</code> - обновить фамилию сейчас
-<code>.autoupdate</code> - включить автообновление
-<code>.stop</code> - выключить автообновление
+<code>.upd</code> - обновить фамилию сейчас
+<code>.autobd</code> - включить автообновление
+<code>.stopbd</code> - выключить автообновление
+<code>.bdinfo</code> - показать текущие настройки
 
 <b>✨ Что делает:</b>
 Меняет твою фамилию в профиле на количество дней до ДР
-Пример: "154 дня"
-"""
+Пример: "154 дня" → "153 дня" → "1 день"
+""",
+        "info": """<b>📊 Информация:</b>
+
+🎂 <b>Дата рождения:</b> {day:02d}.{month:02d}
+⏳ <b>Осталось:</b> {days} дней
+🔄 <b>Автообновление:</b> {auto}
+👤 <b>Текущая фамилия:</b> {lastname}"""
     }
     
     months = ["Янв", "Фев", "Мар", "Апр", "Май", "Июн",
@@ -60,9 +75,23 @@ class DaysUntilMod(loader.Module):
     
     def __init__(self):
         self.config = loader.ModuleConfig(
-            loader.ConfigValue("day", None, "День рождения"),
-            loader.ConfigValue("month", None, "Месяц рождения"),
-            loader.ConfigValue("auto", False, "Автообновление включено?"),
+            loader.ConfigValue(
+                "day", 
+                None, 
+                "День рождения",
+                validator=loader.validators.Integer(minimum=1, maximum=31)
+            ),
+            loader.ConfigValue(
+                "month", 
+                None, 
+                "Месяц рождения",
+                validator=loader.validators.Integer(minimum=1, maximum=12)
+            ),
+            loader.ConfigValue(
+                "auto", 
+                False, 
+                "Автообновление включено?"
+            ),
         )
         self.task = None
     
@@ -73,6 +102,7 @@ class DaysUntilMod(loader.Module):
         # Запускаем автообновление если было включено
         if self.config["auto"] and self.config["day"] and self.config["month"]:
             self.task = asyncio.ensure_future(self._auto_update())
+            logger.info("DaysUntil: Автообновление запущено")
     
     async def setbdcmd(self, message):
         """Настроить дату рождения через инлайн"""
@@ -82,7 +112,7 @@ class DaysUntilMod(loader.Module):
             reply_markup=self._month_buttons()
         )
     
-    async def updatecmd(self, message):
+    async def updcmd(self, message):
         """Обновить фамилию сейчас"""
         if not self.config["day"] or not self.config["month"]:
             await utils.answer(message, self.strings("no_date"))
@@ -92,7 +122,7 @@ class DaysUntilMod(loader.Module):
         await self._update_lastname(days)
         await utils.answer(message, self.strings("updated").format(days=days))
     
-    async def autoupdatecmd(self, message):
+    async def autobdcmd(self, message):
         """Включить автообновление"""
         if not self.config["day"] or not self.config["month"]:
             await utils.answer(message, self.strings("no_date"))
@@ -106,13 +136,32 @@ class DaysUntilMod(loader.Module):
         self.task = asyncio.ensure_future(self._auto_update())
         await utils.answer(message, self.strings("started"))
     
-    async def stopcmd(self, message):
+    async def stopbdcmd(self, message):
         """Выключить автообновление"""
         self.config["auto"] = False
         if self.task:
             self.task.cancel()
             self.task = None
         await utils.answer(message, self.strings("stopped"))
+    
+    async def bdinforcmd(self, message):
+        """Показать информацию о настройках"""
+        me = await self.client.get_me()
+        
+        if self.config["day"] and self.config["month"]:
+            days = self._get_days_until()
+            auto = "✅ Включено" if self.config["auto"] else "❌ Выключено"
+        else:
+            days = "?"
+            auto = "❌ Выключено"
+        
+        await utils.answer(message, self.strings("info").format(
+            day=self.config["day"] or "??",
+            month=self.config["month"] or "??",
+            days=days,
+            auto=auto,
+            lastname=me.last_name or "не установлена"
+        ))
     
     def _get_days_until(self):
         """Посчитать дней до ДР"""
@@ -147,10 +196,10 @@ class DaysUntilMod(loader.Module):
                 last_name=lastname
             ))
             
-            logger.info(f"Фамилия обновлена: {lastname}")
+            logger.info(f"DaysUntil: Фамилия обновлена на '{lastname}'")
             
         except Exception as e:
-            logger.error(f"Ошибка обновления фамилии: {e}")
+            logger.error(f"DaysUntil: Ошибка обновления фамилии: {e}")
     
     async def _auto_update(self):
         """Автоматическое обновление каждый день"""
@@ -159,14 +208,20 @@ class DaysUntilMod(loader.Module):
                 days = self._get_days_until()
                 await self._update_lastname(days)
                 
-                # Ждём до следующего дня (24 часа)
-                await asyncio.sleep(24 * 60 * 60)
+                # Ждём до следующего дня (ровно в 00:01)
+                now = datetime.datetime.now()
+                tomorrow = now + datetime.timedelta(days=1)
+                next_run = datetime.datetime(tomorrow.year, tomorrow.month, tomorrow.day, 0, 1)
+                sleep_seconds = (next_run - now).total_seconds()
+                
+                logger.info(f"DaysUntil: Следующее обновление в {next_run.strftime('%H:%M')}")
+                await asyncio.sleep(sleep_seconds)
                 
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"Ошибка в автообновлении: {e}")
-                await asyncio.sleep(60)  # Если ошибка, подождать минуту
+                logger.error(f"DaysUntil: Ошибка в автообновлении: {e}")
+                await asyncio.sleep(3600)  # Если ошибка, подождать час
     
     def _month_buttons(self):
         """Кнопки выбора месяца"""
@@ -220,7 +275,7 @@ class DaysUntilMod(loader.Module):
         await self._update_lastname(days)
         
         await call.edit(
-            text=self.strings("birthday_set").format(day=day, month=month)
+            text=self.strings("birthday_set").format(day=day, month=month, days=days)
         )
     
     async def on_unload(self):
@@ -228,3 +283,4 @@ class DaysUntilMod(loader.Module):
         if self.task:
             self.task.cancel()
         self.config["auto"] = False
+        logger.info("DaysUntil: Модуль выгружен")
