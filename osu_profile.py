@@ -21,7 +21,7 @@ class OsuProfileMod(loader.Module):
         "loading": "🔄 <b>Загрузка...</b>",
         "error": "💥 <b>Ошибка:</b> {}",
         
-        # Статистика игрока (как в ExteraGram)
+        # Статистика игрока
         "user_stats": """<b>🎮 Osu! профиль: {username}</b> <a href='https://osu.ppy.sh/users/{user_id}'>🔗</a>
 
 <b>📊 Статистика [{mode}]</b>
@@ -34,7 +34,7 @@ class OsuProfileMod(loader.Module):
 👑 <b>Уровень:</b> {level}
 🏅 <b>Ранги:</b> 💯{ss} ✨{s} 🅰️{a}""",
 
-        # Информация о карте (как в ExteraGram)
+        # Информация о карте
         "map_info": """<b>🎵 {artist} - {title}</b> <a href='https://osu.ppy.sh/s/{mapset_id}'>🔗</a>
 
 <b>📋 Информация о карте</b>
@@ -51,16 +51,16 @@ class OsuProfileMod(loader.Module):
         "help_text": """<b>🎮 OsuProfile Module</b>
 
 <b>📋 Команды:</b>
-.osu <ник> - статистика игрока
-.osu <ник>:<режим> - статистика в режиме
-.map <название> - поиск карты
-.map <ID> - карта по ID
-.osuhelp - это сообщение
+<code>.osu ник</code> - статистика игрока
+<code>.osu ник:режим</code> - статистика в режиме
+<code>.map название</code> - поиск карты
+<code>.map ID</code> - карта по ID
+<code>.osuhelp</code> - это сообщение
 
 <b>🎯 Режимы:</b> osu, taiko, catch, mania
-<b>✨ Пример:</b> .osu peppy:mania""",
+<b>✨ Пример:</b> <code>.osu peppy:mania</code>""",
         
-        # Статусы карт (как в ExteraGram)
+        # Статусы карт
         "status_graveyard": "🪦 Заброшенная",
         "status_wip": "🔧 В разработке",
         "status_pending": "⏳ В ожидании",
@@ -79,7 +79,7 @@ class OsuProfileMod(loader.Module):
         "video_no": "❌ Нет",
     }
     
-    # Константы (как в ExteraGram)
+    # Константы
     API_KEY_V1 = "3e0c7c9baf734a70f780f2960332d825c50c4690"
     API_URL_V1 = "https://osu.ppy.sh/api/get_user"
     API_BEATMAP_V1 = "https://osu.ppy.sh/api/get_beatmaps"
@@ -89,14 +89,14 @@ class OsuProfileMod(loader.Module):
         self.db = db
     
     async def osucmd(self, message):
-        """.osu <ник> [:<режим>] - Получить статистику игрока"""
+        """<ник> [:<режим>] - Получить статистику игрока"""
         args = utils.get_args_raw(message)
         
         if not args:
             await utils.answer(message, self.strings("no_nick"))
             return
         
-        # Парсим режим если есть (как в ExteraGram)
+        # Парсим режим если есть
         mode = 0
         nickname = args
         
@@ -141,7 +141,7 @@ class OsuProfileMod(loader.Module):
             await utils.answer(message, self.strings("error").format(str(e)))
     
     async def mapcmd(self, message):
-        """.map <название или ID> - Найти информацию о карте"""
+        """<название или ID> - Найти информацию о карте"""
         args = utils.get_args_raw(message)
         
         if not args:
@@ -275,7 +275,7 @@ class OsuProfileMod(loader.Module):
                     minutes = length // 60
                     seconds = length % 60
                     
-                    # Эмодзи для звезд (как в ExteraGram)
+                    # Эмодзи для звезд
                     if stars < 2:
                         star_emoji = "⭐"
                     elif stars < 3:
