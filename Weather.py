@@ -128,8 +128,8 @@ class WeatherMod(loader.Module):
             ),
             loader.ConfigValue(
                 "api_key",
-                "b1b15e88fa797225412429c1c50c122a1",  # Публичный ключ (ограничен)
-                "API ключ OpenWeatherMap (получить на openweathermap.org/api)",
+                "b1b15e88fa797225412429c1c50c122a1",
+                "API ключ OpenWeatherMap",
                 validator=loader.validators.String()
             ),
             loader.ConfigValue(
@@ -141,7 +141,7 @@ class WeatherMod(loader.Module):
             loader.ConfigValue(
                 "lang",
                 "ru",
-                "Язык: ru, en, ua, etc.",
+                "Язык: ru, en, ua",
                 validator=loader.validators.String()
             ),
         )
@@ -151,7 +151,7 @@ class WeatherMod(loader.Module):
         self.db = db
     
     async def weathercmd(self, message):
-        """.weather <город> - Показать погоду"""
+        """<город> - Показать погоду"""
         args = utils.get_args_raw(message)
         
         if not args:
@@ -162,7 +162,7 @@ class WeatherMod(loader.Module):
         await self._get_weather(message, city)
     
     async def wcmd(self, message):
-        """.w <город> - Быстрая погода"""
+        """<город> - Быстрая погода"""
         args = utils.get_args_raw(message)
         
         if not args:
@@ -177,7 +177,7 @@ class WeatherMod(loader.Module):
         await self._get_weather(message, city)
     
     async def setcitycmd(self, message):
-        """.setcity <город> - Сохранить город по умолчанию"""
+        """<город> - Сохранить город по умолчанию"""
         args = utils.get_args_raw(message)
         
         if not args:
@@ -190,7 +190,7 @@ class WeatherMod(loader.Module):
         await utils.answer(message, f"✅ <b>Город сохранён:</b> {city}")
     
     async def myweathercmd(self, message):
-        """.myweather - Погода для сохранённого города"""
+        """Погода для сохранённого города"""
         if not self.config["default_city"]:
             await utils.answer(message, "🚫 <b>Сначала сохрани город через</b> <code>.setcity</code>")
             return
@@ -198,7 +198,7 @@ class WeatherMod(loader.Module):
         await self._get_weather(message, self.config["default_city"])
     
     async def weatherhelpcmd(self, message):
-        """Помощь по модулю"""
+        """Показать помощь по модулю"""
         await utils.answer(message, self.strings("help"))
     
     async def _get_weather(self, message, city: str):
@@ -215,7 +215,6 @@ class WeatherMod(loader.Module):
             }
             
             async with aiohttp.ClientSession() as session:
-                # ИСПРАВЛЕНО: добавил "as resp"
                 async with session.get(geo_url, params=geo_params) as resp:
                     if resp.status != 200:
                         await utils.answer(message, self.strings("error").format(f"HTTP {resp.status}"))
@@ -242,7 +241,6 @@ class WeatherMod(loader.Module):
                     "lang": self.config["lang"]
                 }
                 
-                # ИСПРАВЛЕНО: добавил "as resp"
                 async with session.get(weather_url, params=weather_params) as resp:
                     if resp.status != 200:
                         await utils.answer(message, self.strings("error").format(f"HTTP {resp.status}"))
@@ -258,10 +256,9 @@ class WeatherMod(loader.Module):
                     "appid": self.config["api_key"],
                     "units": self.config["units"],
                     "lang": self.config["lang"],
-                    "cnt": 5  # 5 дней
+                    "cnt": 5
                 }
                 
-                # ИСПРАВЛЕНО: добавил "as resp"
                 async with session.get(forecast_url, params=forecast_params) as resp:
                     if resp.status != 200:
                         forecast_data = {"list": []}
@@ -331,28 +328,27 @@ class WeatherMod(loader.Module):
     
     def _get_weather_emoji(self, weather_id: int, desc: str) -> str:
         """Выбор эмодзи по коду погоды"""
-        if weather_id // 100 == 2:  # Гроза
+        if weather_id // 100 == 2:
             return "⛈️"
-        elif weather_id // 100 == 3:  # Морось
+        elif weather_id // 100 == 3:
             return "🌧️"
-        elif weather_id // 100 == 5:  # Дождь
-            if weather_id == 500:  # Легкий дождь
+        elif weather_id // 100 == 5:
+            if weather_id == 500:
                 return "🌦️"
             return "🌧️"
-        elif weather_id // 100 == 6:  # Снег
+        elif weather_id // 100 == 6:
             return "❄️"
-        elif weather_id // 100 == 7:  # Туман
+        elif weather_id // 100 == 7:
             return "🌫️"
-        elif weather_id == 800:  # Ясно
+        elif weather_id == 800:
             return "☀️"
-        elif weather_id == 801:  # Малооблачно
+        elif weather_id == 801:
             return "⛅"
-        elif weather_id == 802:  # Переменная облачность
+        elif weather_id == 802:
             return "☁️"
-        elif weather_id in [803, 804]:  # Облачно
+        elif weather_id in [803, 804]:
             return "☁️"
         
-        # Поиск по описанию
         for key, emoji in self.weather_emojis.items():
             if key in desc:
                 return emoji
