@@ -18,6 +18,8 @@ class VideoToGifMod(loader.Module):
         "no_reply": "❌ <b>Ответь на видео!</b>\nПример: <code>.gif 15 10</code>",
         "not_video": "❌ <b>Это не видео!</b>",
         "loading": "🔄 <b>Создаю GIF...</b>",
+        "installing": "📦 <b>Устанавливаю FFmpeg...</b>\nЭто займёт около минуты",
+        "install_error": "❌ <b>Не удалось установить FFmpeg</b>\nУстанови вручную: <code>pkg install ffmpeg</code>",
         "args_error": "❌ <b>Неверные аргументы!</b>\nИспользуй: <code>.gif [fps] [размер]</code>\nFPS: 1-30, Размер: 1-20 MB",
         "fps_error": "❌ <b>FPS должен быть от 1 до 30</b>",
         "size_error": "❌ <b>Размер должен быть от 1 до 20 MB</b>",
@@ -39,7 +41,7 @@ class VideoToGifMod(loader.Module):
 FPS: 1-30 (качество плавности)
 Размер: 1-20 MB (конечный размер)
 
-<b>⚠️ Чем выше FPS, тем больше размер!</b>"""
+<b>⚠️ FFmpeg установится автоматически!</b>"""
     }
     
     strings_ru = {
@@ -47,6 +49,8 @@ FPS: 1-30 (качество плавности)
         "no_reply": "❌ <b>Ответь на видео!</b>\nПример: <code>.gif 15 10</code>",
         "not_video": "❌ <b>Это не видео!</b>",
         "loading": "🔄 <b>Создаю GIF...</b>",
+        "installing": "📦 <b>Устанавливаю FFmpeg...</b>\nЭто займёт около минуты",
+        "install_error": "❌ <b>Не удалось установить FFmpeg</b>\nУстанови вручную: <code>pkg install ffmpeg</code>",
         "args_error": "❌ <b>Неверные аргументы!</b>\nИспользуй: <code>.gif [fps] [размер]</code>\nFPS: 1-30, Размер: 1-20 MB",
         "fps_error": "❌ <b>FPS должен быть от 1 до 30</b>",
         "size_error": "❌ <b>Размер должен быть от 1 до 20 MB</b>",
@@ -68,7 +72,7 @@ FPS: 1-30 (качество плавности)
 FPS: 1-30 (качество плавности)
 Размер: 1-20 MB (конечный размер)
 
-<b>⚠️ Чем выше FPS, тем больше размер!</b>"""
+<b>⚠️ FFmpeg установится автоматически!</b>"""
     }
     
     def __init__(self):
@@ -92,12 +96,18 @@ FPS: 1-30 (качество плавности)
                 validator=loader.validators.Boolean()
             )
         )
+        self.ffmpeg_checked = False
+        self.ffmpeg_available = False
     
     async def client_ready(self, client, db):
         self.client = client
         self.db = db
+    
+    async def _check_ffmpeg(self, message=None):
+        """Проверяет наличие ffmpeg и устанавливает если нет"""
+        if self.ffmpeg_checked:
+            return self.ffmpeg_available
         
-        # Проверяем ffmpeg
         try:
             process = await asyncio.create_subprocess_exec(
                 "ffmpeg", "-version",
@@ -108,15 +118,51 @@ FPS: 1-30 (качество плавности)
             self.ffmpeg_available = process.returncode == 0
         except:
             self.ffmpeg_available = False
+        
+        if not self.ffmpeg_available and message:
+            # Пытаемся установить ffmpeg
+            status = await utils.answer(message, self.strings("installing"))
             
-        if not self.ffmpeg_available:
-            logger.warning("FFmpeg не найден! Установи: pkg install ffmpeg")
+            try:
+                # Обновляем пакеты
+                process = await asyncio.create_subprocess_exec(
+                    "pkg", "update", "-y",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                await process.communicate()
+                
+                # Устанавливаем ffmpeg
+                process = await asyncio.create_subprocess_exec(
+                    "pkg", "install", "ffmpeg", "-y",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                await process.communicate()
+                
+                # Проверяем снова
+                process = await asyncio.create_subprocess_exec(
+                    "ffmpeg", "-version",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                await process.communicate()
+                self.ffmpeg_available = process.returncode == 0
+                
+                if self.ffmpeg_available:
+                    await utils.answer(status, "✅ <b>FFmpeg успешно установлен!</b>")
+                else:
+                    await utils.answer(status, self.strings("install_error"))
+                    
+            except Exception as e:
+                logger.error(f"FFmpeg installation error: {e}")
+                await utils.answer(status, self.strings("install_error"))
+        
+        self.ffmpeg_checked = True
+        return self.ffmpeg_available
     
     async def gifcmd(self, message):
         """.gif [fps] [размер] - Создать GIF из видео (ответом)"""
-        if not self.ffmpeg_available:
-            await utils.answer(message, "❌ <b>FFmpeg не установлен!</b>\nУстанови: <code>pkg install ffmpeg</code>")
-            return
         
         # Проверяем ответ
         reply = await message.get_reply_message()
@@ -129,12 +175,16 @@ FPS: 1-30 (качество плавности)
             await utils.answer(message, self.strings("not_video"))
             return
         
+        # Проверяем/устанавливаем ffmpeg
+        if not await self._check_ffmpeg(message):
+            return
+        
         # Парсим аргументы
         args = utils.get_args_raw(message).split()
         fps = self.config["default_fps"]
         target_size = self.config["default_size"]
         
-        if len(args) >= 1:
+        if len(args) >= 1 and args[0]:
             try:
                 fps = int(args[0])
                 if fps < 1 or fps > 30:
@@ -144,7 +194,7 @@ FPS: 1-30 (качество плавности)
                 await utils.answer(message, self.strings("args_error"))
                 return
         
-        if len(args) >= 2:
+        if len(args) >= 2 and args[1]:
             try:
                 target_size = int(args[1])
                 if target_size < 1 or target_size > 20:
@@ -181,7 +231,7 @@ FPS: 1-30 (качество плавности)
             dimensions = stdout.decode().strip().split('\n')
             
             # Определяем размер для масштабирования
-            if len(dimensions) >= 2:
+            if len(dimensions) >= 2 and dimensions[0] and dimensions[1]:
                 width = int(dimensions[0])
                 height = int(dimensions[1])
                 
@@ -218,62 +268,66 @@ FPS: 1-30 (качество плавности)
             await process.communicate()
             
             # Проверяем размер
-            gif_size = os.path.getsize(gif_path) / (1024 * 1024)  # в MB
-            
-            # Если получилось больше чем нужно, пробуем сжать
-            if gif_size > target_size:
-                # Уменьшаем FPS и размер
-                new_fps = max(5, fps - 5)
-                new_scale = "320:-1" if scale != "320:-1" else "240:-1"
+            if os.path.exists(gif_path):
+                gif_size = os.path.getsize(gif_path) / (1024 * 1024)  # в MB
                 
-                cmd2 = [
-                    "ffmpeg",
-                    "-i", video_path,
-                    "-vf", f"fps={new_fps},scale={new_scale}:flags=lanczos",
-                    "-c:v", "gif",
-                    "-y",
-                    gif_path
-                ]
+                # Если получилось больше чем нужно, пробуем сжать
+                if gif_size > target_size:
+                    # Уменьшаем FPS и размер
+                    new_fps = max(5, fps - 5)
+                    new_scale = "320:-1" if scale != "320:-1" else "240:-1"
+                    
+                    cmd2 = [
+                        "ffmpeg",
+                        "-i", video_path,
+                        "-vf", f"fps={new_fps},scale={new_scale}:flags=lanczos",
+                        "-c:v", "gif",
+                        "-y",
+                        gif_path
+                    ]
+                    
+                    process2 = await asyncio.create_subprocess_exec(
+                        *cmd2,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    await process2.communicate()
+                    
+                    if os.path.exists(gif_path):
+                        gif_size = os.path.getsize(gif_path) / (1024 * 1024)
+                        fps = new_fps
                 
-                process2 = await asyncio.create_subprocess_exec(
-                    *cmd2,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
+                end_time = datetime.now()
+                duration = (end_time - start_time).total_seconds()
+                
+                # Проверяем итоговый размер
+                if gif_size > 20:  # Больше 20 MB нельзя отправить
+                    await utils.answer(msg, self.strings("too_big").format(
+                        size=round(gif_size, 1),
+                        target=target_size
+                    ))
+                    if os.path.exists(gif_path):
+                        os.remove(gif_path)
+                    return
+                
+                # Отправляем GIF
+                await self.client.send_file(
+                    message.to_id,
+                    gif_path,
+                    reply_to=reply.id if reply else None,
+                    caption=self.strings("success").format(
+                        time=round(duration, 1),
+                        fps=fps,
+                        size=round(gif_size, 1),
+                        target_size=target_size
+                    )
                 )
-                await process2.communicate()
                 
-                gif_size = os.path.getsize(gif_path) / (1024 * 1024)
-                fps = new_fps
-            
-            end_time = datetime.now()
-            duration = (end_time - start_time).total_seconds()
-            
-            # Проверяем итоговый размер
-            if gif_size > 20:  # Больше 20 MB нельзя отправить
-                await utils.answer(msg, self.strings("too_big").format(
-                    size=round(gif_size, 1),
-                    target=target_size
-                ))
-                os.remove(gif_path)
-                return
-            
-            # Отправляем GIF
-            await self.client.send_file(
-                message.to_id,
-                gif_path,
-                reply_to=reply.id if reply else None,
-                caption=self.strings("success").format(
-                    time=round(duration, 1),
-                    fps=fps,
-                    size=round(gif_size, 1),
-                    target_size=target_size
-                )
-            )
-            
-            # Удаляем временные файлы
-            os.remove(gif_path)
-            if self.config["auto_delete"] and os.path.exists(video_path):
-                os.remove(video_path)
+                # Удаляем временные файлы
+                if os.path.exists(gif_path):
+                    os.remove(gif_path)
+            else:
+                raise Exception("GIF file not created")
             
         except Exception as e:
             logger.exception(f"GIF creation error: {e}")
@@ -283,6 +337,7 @@ FPS: 1-30 (качество плавности)
             # Удаляем видео если осталось
             if os.path.exists(video_path):
                 try:
-                    os.remove(video_path)
+                    if self.config["auto_delete"]:
+                        os.remove(video_path)
                 except:
                     pass
