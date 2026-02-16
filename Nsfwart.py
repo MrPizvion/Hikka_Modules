@@ -3,6 +3,7 @@ import aiohttp
 import random
 import logging
 import asyncio
+import traceback
 
 logger = logging.getLogger(__name__)
 
@@ -136,27 +137,35 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
             )
         )
         self.confirmed_users = {}
-        self.pending_requests = {}  # Храним информацию о запросах
+        self.pending_requests = {}
     
     async def client_ready(self, client, db):
         self.client = client
         self.db = db
         self.confirmed_users = self.db.get("RandomHentai", "confirmed", {})
+        logger.info("✅ RandomHentai модуль инициализирован")
+        logger.info(f"📊 Подтверждённые пользователи: {len(self.confirmed_users)}")
     
     async def nsfwcmd(self, message):
         """.nsfw [тег] - Получить NSFW по тегу"""
+        logger.info(f"📝 Команда .nsfw от {message.chat_id}")
+        
         if not self.config["confirm_18"] and message.chat_id not in self.confirmed_users:
+            logger.info(f"🔞 Требуется подтверждение для {message.chat_id}")
             await self._ask_confirmation(message, "nsfw", None)
             return
         
         args = utils.get_args_raw(message)
         if not args:
+            logger.warning("❌ Не указан тег")
             await utils.answer(message, "❌ <b>Укажи тег!</b>\nПример: <code>.nsfw boobs</code>")
             return
         
         tag = args.strip().lower()
+        logger.info(f"🔍 Запрошен тег: {tag}")
+        
         if tag not in self.endpoints:
-            # Показываем похожие теги
+            logger.warning(f"❌ Тег '{tag}' не найден")
             similar = [t for t in self.endpoints.keys() if tag in t][:5]
             if similar:
                 await utils.answer(message, f"❌ <b>Тег '{tag}' не найден!</b>\nПохожие: {', '.join(similar)}")
@@ -168,36 +177,44 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
     
     async def hentaicmd(self, message):
         """Случайный хентай"""
+        logger.info(f"📝 Команда .hentai от {message.chat_id}")
         if not self.config["confirm_18"] and message.chat_id not in self.confirmed_users:
+            logger.info(f"🔞 Требуется подтверждение для {message.chat_id}")
             await self._ask_confirmation(message, "hentai", None)
             return
         await self._get_nsfw(message, "hentai")
     
     async def nekocmd(self, message):
         """Случайная neko"""
+        logger.info(f"📝 Команда .neko от {message.chat_id}")
         if not self.config["confirm_18"] and message.chat_id not in self.confirmed_users:
+            logger.info(f"🔞 Требуется подтверждение для {message.chat_id}")
             await self._ask_confirmation(message, "neko", None)
             return
         await self._get_nsfw(message, "neko")
     
     async def kemonocmd(self, message):
         """Случайный kemonomimi"""
+        logger.info(f"📝 Команда .kemono от {message.chat_id}")
         if not self.config["confirm_18"] and message.chat_id not in self.confirmed_users:
+            logger.info(f"🔞 Требуется подтверждение для {message.chat_id}")
             await self._ask_confirmation(message, "kemono", None)
             return
         await self._get_nsfw(message, "kemonomimi")
     
     async def holocmd(self, message):
         """Случайный Holo"""
+        logger.info(f"📝 Команда .holo от {message.chat_id}")
         if not self.config["confirm_18"] and message.chat_id not in self.confirmed_users:
+            logger.info(f"🔞 Требуется подтверждение для {message.chat_id}")
             await self._ask_confirmation(message, "holo", None)
             return
         await self._get_nsfw(message, "holo")
     
     async def nsfwhelpcmd(self, message):
         """Список всех тегов"""
+        logger.info(f"📝 Команда .nsfwhelp от {message.chat_id}")
         tags = list(self.endpoints.keys())
-        # Разбиваем на группы
         lines = []
         for i in range(0, len(tags), 10):
             lines.append(", ".join(tags[i:i+10]))
@@ -210,8 +227,9 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
     
     async def _ask_confirmation(self, message, cmd, tag):
         """Спрашивает подтверждение 18+"""
-        # Сохраняем информацию о запросе
-        request_id = f"{message.chat_id}_{cmd}_{tag or 'none'}"
+        request_id = f"{message.chat_id}_{cmd}_{tag or 'none'}_{id(message)}"
+        logger.info(f"🔐 Создан запрос подтверждения: {request_id}")
+        
         self.pending_requests[request_id] = {
             "chat_id": message.chat_id,
             "cmd": cmd,
@@ -234,9 +252,11 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
     
     async def _confirm_cb(self, call, request_id):
         """Подтверждение 18+"""
-        # Получаем информацию о запросе
+        logger.info(f"✅ Подтверждение получено для request_id: {request_id}")
+        
         request = self.pending_requests.get(request_id)
         if not request:
+            logger.error(f"❌ Запрос {request_id} не найден в pending_requests")
             await call.answer("❌ Запрос устарел")
             await call.delete()
             return
@@ -245,69 +265,107 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
         cmd = request["cmd"]
         tag = request["tag"]
         
-        # Сохраняем подтверждение
+        logger.info(f"📊 Данные запроса: chat_id={chat_id}, cmd={cmd}, tag={tag}")
+        
         self.confirmed_users[chat_id] = True
         self.db.set("RandomHentai", "confirmed", self.confirmed_users)
+        logger.info(f"💾 Пользователь {chat_id} добавлен в confirmed_users")
         
         await call.delete()
         
+        # Удаляем из pending
+        del self.pending_requests[request_id]
+        
         # Отправляем контент
         if cmd == "nsfw" and tag:
+            logger.info(f"📤 Отправка NSFW по тегу {tag} в чат {chat_id}")
             await self._get_nsfw_by_id(chat_id, tag)
         else:
+            logger.info(f"📤 Отправка {cmd} в чат {chat_id}")
             await self._get_nsfw_by_id(chat_id, cmd)
     
     async def _cancel_cb(self, call):
         """Отмена"""
+        logger.info("❌ Пользователь отменил подтверждение")
         await call.delete()
         await call.answer("❌ Доступ запрещён")
     
     async def _get_nsfw(self, message, tag: str):
         """Получение NSFW контента из сообщения"""
         chat_id = message.chat_id
+        logger.info(f"📥 _get_nsfw: chat_id={chat_id}, tag={tag}")
         await self._get_nsfw_by_id(chat_id, tag, message.reply_to_msg_id)
     
     async def _get_nsfw_by_id(self, chat_id: int, tag: str, reply_to=None):
         """Получение NSFW контента по ID чата"""
-        msg = await self.client.send_message(chat_id, self.strings("loading"))
+        logger.info(f"🔄 _get_nsfw_by_id: chat_id={chat_id}, tag={tag}")
+        
+        try:
+            msg = await self.client.send_message(chat_id, self.strings("loading"))
+            logger.info(f"📨 Отправлено сообщение загрузки в {chat_id}")
+        except Exception as e:
+            logger.error(f"❌ Не удалось отправить сообщение в {chat_id}: {e}")
+            logger.error(traceback.format_exc())
+            return
         
         try:
             url = self.endpoints.get(tag, self.endpoints["hentai"])
+            logger.info(f"🔗 URL запроса: {url}")
             
-            # Добавляем API ключ если есть
             if self.config["api_key"]:
                 url += f"&key={self.config['api_key']}"
+                logger.info("🔑 Добавлен API ключ")
             
             async with aiohttp.ClientSession() as session:
+                logger.info("🌐 Выполняется запрос к API...")
                 async with session.get(url, timeout=10) as resp:
+                    logger.info(f"📊 Статус ответа: {resp.status}")
+                    
                     if resp.status != 200:
-                        await self.client.edit_message(msg, self.strings("error").format(f"HTTP {resp.status}"))
+                        error_text = f"HTTP {resp.status}"
+                        logger.error(f"❌ Ошибка API: {error_text}")
+                        await self.client.edit_message(msg, self.strings("error").format(error_text))
                         return
                     
                     data = await resp.json()
+                    logger.info(f"📦 Получен ответ от API: success={data.get('success')}")
                     
                     if not data.get("success"):
+                        logger.error("❌ API вернул success=False")
                         await self.client.edit_message(msg, self.strings("error").format("API вернул ошибку"))
                         return
                     
                     image_url = data.get("message")
                     if not image_url:
+                        logger.error("❌ В ответе нет URL")
                         await self.client.edit_message(msg, self.strings("error").format("Нет URL"))
                         return
                     
+                    logger.info(f"🖼️ Получен URL: {image_url[:50]}...")
+                    
                     # Удаляем сообщение загрузки
                     await msg.delete()
+                    logger.info("🗑️ Сообщение загрузки удалено")
                     
                     # Отправляем картинку
-                    await self.client.send_file(
-                        chat_id,
-                        image_url,
-                        reply_to=reply_to,
-                        caption=f"🔞 <b>{tag.upper()}</b>"
-                    )
+                    logger.info(f"📤 Отправка файла в {chat_id}")
+                    try:
+                        await self.client.send_file(
+                            chat_id,
+                            image_url,
+                            reply_to=reply_to,
+                            caption=f"🔞 <b>{tag.upper()}</b>"
+                        )
+                        logger.info("✅ Файл успешно отправлен")
+                    except Exception as e:
+                        logger.error(f"❌ Ошибка отправки файла: {e}")
+                        logger.error(traceback.format_exc())
+                        await self.client.send_message(chat_id, self.strings("error").format(str(e)))
             
         except asyncio.TimeoutError:
+            logger.error("⏱️ Таймаут при запросе к API")
             await self.client.edit_message(msg, self.strings("error").format("Таймаут"))
         except Exception as e:
-            logger.exception(f"NSFW error: {e}")
+            logger.error(f"💥 Необработанная ошибка: {e}")
+            logger.error(traceback.format_exc())
             await self.client.edit_message(msg, self.strings("error").format(str(e)))
