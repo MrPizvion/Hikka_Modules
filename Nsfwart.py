@@ -54,7 +54,7 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
 <b>⚠️ Требуется подтверждение 18+</b>"""
     }
     
-    # Список доступных эндпоинтов (УБРАЛ ДУБЛИКАТЫ)
+    # Список доступных эндпоинтов
     endpoints = {
         "hentai": "https://nekobot.xyz/api/image?type=hentai",
         "neko": "https://nekobot.xyz/api/image?type=neko",
@@ -224,12 +224,23 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
     
     async def _confirm_cb(self, call, cmd, tag):
         """Подтверждение 18+"""
-        # ИСПРАВЛЕНО: call.chat.id вместо call.chat_id
-        self.confirmed_users[call.chat.id] = True
-        self.db.set("RandomHentai", "confirmed", self.confirmed_users)
+        # ИСПРАВЛЕНО: используем call._chat_id или call.form.chat.id
+        chat_id = None
+        if hasattr(call, '_chat_id'):
+            chat_id = call._chat_id
+        elif hasattr(call, 'form') and hasattr(call.form, 'chat'):
+            chat_id = call.form.chat.id
+        else:
+            # Если ничего не работает, пробуем получить из message
+            chat_id = call.chat_id if hasattr(call, 'chat_id') else None
+        
+        if chat_id:
+            self.confirmed_users[chat_id] = True
+            self.db.set("RandomHentai", "confirmed", self.confirmed_users)
         
         await call.delete()
         
+        # Передаём правильный объект для отправки
         if cmd == "nsfw":
             await self._get_nsfw(call, tag)
         else:
@@ -269,18 +280,23 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
                         return
                     
                     # Определяем chat_id для отправки
+                    chat_id = None
                     if hasattr(message, 'chat_id'):
                         chat_id = message.chat_id
-                    elif hasattr(message, 'chat'):
-                        chat_id = message.chat.id
-                    else:
-                        chat_id = message.chat.id
+                    elif hasattr(message, 'form') and hasattr(message.form, 'chat'):
+                        chat_id = message.form.chat.id
+                    elif hasattr(message, '_chat_id'):
+                        chat_id = message._chat_id
+                    
+                    if not chat_id:
+                        await utils.answer(msg, self.strings("error").format("Не могу определить чат"))
+                        return
                     
                     # Отправляем картинку
                     await self.client.send_file(
                         chat_id,
                         image_url,
-                        reply_to=message.reply_to_msg_id if hasattr(message, 'reply_to_msg_id') else None,
+                        reply_to=None,
                         caption=f"🔞 <b>{tag.upper()}</b>"
                     )
                     
