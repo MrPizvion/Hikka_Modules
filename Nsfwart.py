@@ -54,7 +54,7 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
 <b>⚠️ Требуется подтверждение 18+</b>"""
     }
     
-    # Список доступных эндпоинтов
+    # Список доступных эндпоинтов (УБРАЛ ДУБЛИКАТЫ)
     endpoints = {
         "hentai": "https://nekobot.xyz/api/image?type=hentai",
         "neko": "https://nekobot.xyz/api/image?type=neko",
@@ -72,7 +72,6 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
         "footjob": "https://nekobot.xyz/api/image?type=footjob",
         "gangbang": "https://nekobot.xyz/api/image?type=gangbang",
         "glasses": "https://nekobot.xyz/api/image?type=glasses",
-        "hentai": "https://nekobot.xyz/api/image?type=hentai",
         "keta": "https://nekobot.xyz/api/image?type=keta",
         "kiss": "https://nekobot.xyz/api/image?type=kiss",
         "loli": "https://nekobot.xyz/api/image?type=loli",
@@ -107,7 +106,6 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
         "gif": "https://nekobot.xyz/api/image?type=gif",
         "gifs": "https://nekobot.xyz/api/image?type=gifs",
         "hentaigif": "https://nekobot.xyz/api/image?type=hentaigif",
-        "neko": "https://nekobot.xyz/api/image?type=neko",
         "neko_gif": "https://nekobot.xyz/api/image?type=neko_gif",
         "nekotits": "https://nekobot.xyz/api/image?type=nekotits",
         "netorare": "https://nekobot.xyz/api/image?type=netorare",
@@ -226,7 +224,8 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
     
     async def _confirm_cb(self, call, cmd, tag):
         """Подтверждение 18+"""
-        self.confirmed_users[call.chat_id] = True
+        # ИСПРАВЛЕНО: call.chat.id вместо call.chat_id
+        self.confirmed_users[call.chat.id] = True
         self.db.set("RandomHentai", "confirmed", self.confirmed_users)
         
         await call.delete()
@@ -269,9 +268,17 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
                         await utils.answer(msg, self.strings("error").format("Нет URL"))
                         return
                     
+                    # Определяем chat_id для отправки
+                    if hasattr(message, 'chat_id'):
+                        chat_id = message.chat_id
+                    elif hasattr(message, 'chat'):
+                        chat_id = message.chat.id
+                    else:
+                        chat_id = message.chat.id
+                    
                     # Отправляем картинку
                     await self.client.send_file(
-                        message.chat_id if hasattr(message, 'chat_id') else message.chat.id,
+                        chat_id,
                         image_url,
                         reply_to=message.reply_to_msg_id if hasattr(message, 'reply_to_msg_id') else None,
                         caption=f"🔞 <b>{tag.upper()}</b>"
