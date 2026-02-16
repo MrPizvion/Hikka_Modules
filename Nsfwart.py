@@ -24,12 +24,12 @@ class RandomHentaiMod(loader.Module):
 <b>📋 Команды:</b>
 <code>.hentai</code> - случайный хентай
 <code>.neko</code> - случайная neko
-<code>.kemono</code> - случайный kemonomimi
-<code>.holo</code> - случайный Holo
+<code>.kemono</code> - kemonomimi
+<code>.holo</code> - Holo
 <code>.nsfw [тег]</code> - NSFW по тегу
 
-<b>📋 Теги для .nsfw:</b>
-anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangbang, glasses, hentai, keta, kiss, loli, maid, masturbation, milf, orgy, pantsu, pussy, school, tentacle, threesome, uniform, yaoi, yuri, tattoo, thighs, vagina, smallboobs, bigboobs, ahegao, cuckold, collar, cosplay, dripping, elf, erofeet, ero, feed, futanari, game, gif, gifs, hentaigif, neko, neko_gif, nekotits, netorare, pussy_wank_gif, solo, solo_gif, spank, syuri, trap, uwu, wank, zbk
+<b>📋 Доступные теги:</b>
+waifu, neko, shinobu, megumin, bully, cuddle, cry, hug, awoo, kiss, lick, pat, smug, bonk, yeet, blush, smile, wave, highfive, handhold, nom, bite, glomp, slap, kill, kick, happy, wink, poke, dance, cringe
 
 <b>⚠️ Требуется подтверждение 18+</b>"""
     }
@@ -45,80 +45,56 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
 <b>📋 Команды:</b>
 <code>.hentai</code> - случайный хентай
 <code>.neko</code> - случайная neko
-<code>.kemono</code> - случайный kemonomimi
-<code>.holo</code> - случайный Holo
+<code>.kemono</code> - kemonomimi
+<code>.holo</code> - Holo
 <code>.nsfw [тег]</code> - NSFW по тегу
 
-<b>📋 Теги для .nsfw:</b>
-anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangbang, glasses, hentai, keta, kiss, loli, maid, masturbation, milf, orgy, pantsu, pussy, school, tentacle, threesome, uniform, yaoi, yuri, tattoo, thighs, vagina, smallboobs, bigboobs, ahegao, cuckold, collar, cosplay, dripping, elf, erofeet, ero, feed, futanari, game, gif, gifs, hentaigif, neko, neko_gif, nekotits, netorare, pussy_wank_gif, solo, solo_gif, spank, syuri, trap, uwu, wank, zbk
+<b>📋 Доступные теги:</b>
+waifu, neko, shinobu, megumin, bully, cuddle, cry, hug, awoo, kiss, lick, pat, smug, bonk, yeet, blush, smile, wave, highfive, handhold, nom, bite, glomp, slap, kill, kick, happy, wink, poke, dance, cringe
 
 <b>⚠️ Требуется подтверждение 18+</b>"""
     }
     
-    # Список доступных эндпоинтов
+    # Новое рабочее API
     endpoints = {
-        "hentai": "https://nekobot.xyz/api/image?type=hentai",
-        "neko": "https://nekobot.xyz/api/image?type=neko",
-        "kemono": "https://nekobot.xyz/api/image?type=kemonomimi",
-        "holo": "https://nekobot.xyz/api/image?type=holo",
-        "anal": "https://nekobot.xyz/api/image?type=anal",
-        "ass": "https://nekobot.xyz/api/image?type=ass",
-        "bdsm": "https://nekobot.xyz/api/image?type=bdsm",
-        "blowjob": "https://nekobot.xyz/api/image?type=blowjob",
-        "boobs": "https://nekobot.xyz/api/image?type=boobs",
-        "cum": "https://nekobot.xyz/api/image?type=cum",
-        "creampie": "https://nekobot.xyz/api/image?type=creampie",
-        "double": "https://nekobot.xyz/api/image?type=double",
-        "femdom": "https://nekobot.xyz/api/image?type=femdom",
-        "footjob": "https://nekobot.xyz/api/image?type=footjob",
-        "gangbang": "https://nekobot.xyz/api/image?type=gangbang",
-        "glasses": "https://nekobot.xyz/api/image?type=glasses",
-        "keta": "https://nekobot.xyz/api/image?type=keta",
-        "kiss": "https://nekobot.xyz/api/image?type=kiss",
-        "loli": "https://nekobot.xyz/api/image?type=loli",
-        "maid": "https://nekobot.xyz/api/image?type=maid",
-        "masturbation": "https://nekobot.xyz/api/image?type=masturbation",
-        "milf": "https://nekobot.xyz/api/image?type=milf",
-        "orgy": "https://nekobot.xyz/api/image?type=orgy",
-        "pantsu": "https://nekobot.xyz/api/image?type=pantsu",
-        "pussy": "https://nekobot.xyz/api/image?type=pussy",
-        "school": "https://nekobot.xyz/api/image?type=school",
-        "tentacle": "https://nekobot.xyz/api/image?type=tentacle",
-        "threesome": "https://nekobot.xyz/api/image?type=threesome",
-        "uniform": "https://nekobot.xyz/api/image?type=uniform",
-        "yaoi": "https://nekobot.xyz/api/image?type=yaoi",
-        "yuri": "https://nekobot.xyz/api/image?type=yuri",
-        "tattoo": "https://nekobot.xyz/api/image?type=tattoo",
-        "thighs": "https://nekobot.xyz/api/image?type=thighs",
-        "vagina": "https://nekobot.xyz/api/image?type=vagina",
-        "smallboobs": "https://nekobot.xyz/api/image?type=smallboobs",
-        "bigboobs": "https://nekobot.xyz/api/image?type=bigboobs",
-        "ahegao": "https://nekobot.xyz/api/image?type=ahegao",
-        "cuckold": "https://nekobot.xyz/api/image?type=cuckold",
-        "collar": "https://nekobot.xyz/api/image?type=collar",
-        "cosplay": "https://nekobot.xyz/api/image?type=cosplay",
-        "dripping": "https://nekobot.xyz/api/image?type=dripping",
-        "elf": "https://nekobot.xyz/api/image?type=elf",
-        "erofeet": "https://nekobot.xyz/api/image?type=erofeet",
-        "ero": "https://nekobot.xyz/api/image?type=ero",
-        "feed": "https://nekobot.xyz/api/image?type=feed",
-        "futanari": "https://nekobot.xyz/api/image?type=futanari",
-        "game": "https://nekobot.xyz/api/image?type=game",
-        "gif": "https://nekobot.xyz/api/image?type=gif",
-        "gifs": "https://nekobot.xyz/api/image?type=gifs",
-        "hentaigif": "https://nekobot.xyz/api/image?type=hentaigif",
-        "neko_gif": "https://nekobot.xyz/api/image?type=neko_gif",
-        "nekotits": "https://nekobot.xyz/api/image?type=nekotits",
-        "netorare": "https://nekobot.xyz/api/image?type=netorare",
-        "pussy_wank_gif": "https://nekobot.xyz/api/image?type=pussy_wank_gif",
-        "solo": "https://nekobot.xyz/api/image?type=solo",
-        "solo_gif": "https://nekobot.xyz/api/image?type=solo_gif",
-        "spank": "https://nekobot.xyz/api/image?type=spank",
-        "syuri": "https://nekobot.xyz/api/image?type=syuri",
-        "trap": "https://nekobot.xyz/api/image?type=trap",
-        "uwu": "https://nekobot.xyz/api/image?type=uwu",
-        "wank": "https://nekobot.xyz/api/image?type=wank",
-        "zbk": "https://nekobot.xyz/api/image?type=zbk"
+        # SFW (всегда работают)
+        "waifu": "https://api.waifu.pics/sfw/waifu",
+        "neko": "https://api.waifu.pics/sfw/neko",
+        "shinobu": "https://api.waifu.pics/sfw/shinobu",
+        "megumin": "https://api.waifu.pics/sfw/megumin",
+        "bully": "https://api.waifu.pics/sfw/bully",
+        "cuddle": "https://api.waifu.pics/sfw/cuddle",
+        "cry": "https://api.waifu.pics/sfw/cry",
+        "hug": "https://api.waifu.pics/sfw/hug",
+        "awoo": "https://api.waifu.pics/sfw/awoo",
+        "kiss": "https://api.waifu.pics/sfw/kiss",
+        "lick": "https://api.waifu.pics/sfw/lick",
+        "pat": "https://api.waifu.pics/sfw/pat",
+        "smug": "https://api.waifu.pics/sfw/smug",
+        "bonk": "https://api.waifu.pics/sfw/bonk",
+        "yeet": "https://api.waifu.pics/sfw/yeet",
+        "blush": "https://api.waifu.pics/sfw/blush",
+        "smile": "https://api.waifu.pics/sfw/smile",
+        "wave": "https://api.waifu.pics/sfw/wave",
+        "highfive": "https://api.waifu.pics/sfw/highfive",
+        "handhold": "https://api.waifu.pics/sfw/handhold",
+        "nom": "https://api.waifu.pics/sfw/nom",
+        "bite": "https://api.waifu.pics/sfw/bite",
+        "glomp": "https://api.waifu.pics/sfw/glomp",
+        "slap": "https://api.waifu.pics/sfw/slap",
+        "kill": "https://api.waifu.pics/sfw/kill",
+        "kick": "https://api.waifu.pics/sfw/kick",
+        "happy": "https://api.waifu.pics/sfw/happy",
+        "wink": "https://api.waifu.pics/sfw/wink",
+        "poke": "https://api.waifu.pics/sfw/poke",
+        "dance": "https://api.waifu.pics/sfw/dance",
+        "cringe": "https://api.waifu.pics/sfw/cringe",
+        
+        # NSFW (только для 18+)
+        "hentai": "https://api.waifu.pics/nsfw/waifu",
+        "blowjob": "https://api.waifu.pics/nsfw/blowjob",
+        "trap": "https://api.waifu.pics/nsfw/trap",
+        "neko_nsfw": "https://api.waifu.pics/nsfw/neko"
     }
     
     def __init__(self):
@@ -126,7 +102,7 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
             loader.ConfigValue(
                 "api_key",
                 None,
-                "🔑 API ключ NekoBot (необязательно)",
+                "🔑 API ключ (не нужен)",
                 validator=loader.validators.String()
             ),
             loader.ConfigValue(
@@ -158,7 +134,7 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
         args = utils.get_args_raw(message)
         if not args:
             logger.warning("❌ Не указан тег")
-            await utils.answer(message, "❌ <b>Укажи тег!</b>\nПример: <code>.nsfw boobs</code>")
+            await utils.answer(message, "❌ <b>Укажи тег!</b>\nПример: <code>.nsfw waifu</code>")
             return
         
         tag = args.strip().lower()
@@ -200,7 +176,7 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
             logger.info(f"🔞 Требуется подтверждение для {message.chat_id}")
             await self._ask_confirmation(message, "kemono", None)
             return
-        await self._get_nsfw(message, "kemonomimi")
+        await self._get_nsfw(message, "kemono")
     
     async def holocmd(self, message):
         """Случайный Holo"""
@@ -215,13 +191,15 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
         """Список всех тегов"""
         logger.info(f"📝 Команда .nsfwhelp от {message.chat_id}")
         tags = list(self.endpoints.keys())
-        lines = []
-        for i in range(0, len(tags), 10):
-            lines.append(", ".join(tags[i:i+10]))
+        sfw_tags = [t for t in tags if not t.startswith("nsfw_") and t not in ["hentai", "blowjob", "trap"]][:20]
+        nsfw_tags = ["hentai", "blowjob", "trap", "neko_nsfw"]
         
         text = "<b>🔞 Доступные теги:</b>\n\n"
-        text += "\n".join(lines)
-        text += "\n\n<b>Пример:</b> <code>.nsfw boobs</code>"
+        text += "<b>✨ SFW (без подтверждения):</b>\n"
+        text += ", ".join(sfw_tags[:15]) + "\n\n"
+        text += "<b>🔥 NSFW (требуется 18+):</b>\n"
+        text += ", ".join(nsfw_tags) + "\n\n"
+        text += "<b>Пример:</b> <code>.nsfw waifu</code>"
         
         await utils.answer(message, text)
     
@@ -273,10 +251,8 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
         
         await call.delete()
         
-        # Удаляем из pending
         del self.pending_requests[request_id]
         
-        # Отправляем контент
         if cmd == "nsfw" and tag:
             logger.info(f"📤 Отправка NSFW по тегу {tag} в чат {chat_id}")
             await self._get_nsfw_by_id(chat_id, tag)
@@ -309,12 +285,8 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
             return
         
         try:
-            url = self.endpoints.get(tag, self.endpoints["hentai"])
+            url = self.endpoints.get(tag, self.endpoints["waifu"])
             logger.info(f"🔗 URL запроса: {url}")
-            
-            if self.config["api_key"]:
-                url += f"&key={self.config['api_key']}"
-                logger.info("🔑 Добавлен API ключ")
             
             async with aiohttp.ClientSession() as session:
                 logger.info("🌐 Выполняется запрос к API...")
@@ -328,14 +300,9 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
                         return
                     
                     data = await resp.json()
-                    logger.info(f"📦 Получен ответ от API: success={data.get('success')}")
+                    logger.info(f"📦 Получен ответ от API")
                     
-                    if not data.get("success"):
-                        logger.error("❌ API вернул success=False")
-                        await self.client.edit_message(msg, self.strings("error").format("API вернул ошибку"))
-                        return
-                    
-                    image_url = data.get("message")
+                    image_url = data.get("url")
                     if not image_url:
                         logger.error("❌ В ответе нет URL")
                         await self.client.edit_message(msg, self.strings("error").format("Нет URL"))
@@ -343,11 +310,9 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
                     
                     logger.info(f"🖼️ Получен URL: {image_url[:50]}...")
                     
-                    # Удаляем сообщение загрузки
                     await msg.delete()
                     logger.info("🗑️ Сообщение загрузки удалено")
                     
-                    # Отправляем картинку
                     logger.info(f"📤 Отправка файла в {chat_id}")
                     try:
                         await self.client.send_file(
