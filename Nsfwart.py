@@ -136,6 +136,7 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
             )
         )
         self.confirmed_users = {}
+        self.pending_requests = {}  # Храним информацию о запросах
     
     async def client_ready(self, client, db):
         self.client = client
@@ -209,6 +210,15 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
     
     async def _ask_confirmation(self, message, cmd, tag):
         """Спрашивает подтверждение 18+"""
+        # Сохраняем информацию о запросе
+        request_id = f"{message.chat_id}_{cmd}_{tag or 'none'}"
+        self.pending_requests[request_id] = {
+            "chat_id": message.chat_id,
+            "cmd": cmd,
+            "tag": tag,
+            "reply_to": message.reply_to_msg_id
+        }
+        
         self.confirmed_users[message.chat_id] = False
         
         await self.inline.form(
@@ -216,35 +226,36 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
             message=message,
             reply_markup=[
                 [
-                    {"text": "✅ Да, мне есть 18", "callback": self._confirm_cb, "args": (cmd, tag)},
+                    {"text": "✅ Да, мне есть 18", "callback": self._confirm_cb, "args": (request_id,)},
                     {"text": "❌ Нет", "callback": self._cancel_cb}
                 ]
             ]
         )
     
-    async def _confirm_cb(self, call, cmd, tag):
+    async def _confirm_cb(self, call, request_id):
         """Подтверждение 18+"""
-        # ИСПРАВЛЕНО: используем call._chat_id или call.form.chat.id
-        chat_id = None
-        if hasattr(call, '_chat_id'):
-            chat_id = call._chat_id
-        elif hasattr(call, 'form') and hasattr(call.form, 'chat'):
-            chat_id = call.form.chat.id
-        else:
-            # Если ничего не работает, пробуем получить из message
-            chat_id = call.chat_id if hasattr(call, 'chat_id') else None
+        # Получаем информацию о запросе
+        request = self.pending_requests.get(request_id)
+        if not request:
+            await call.answer("❌ Запрос устарел")
+            await call.delete()
+            return
         
-        if chat_id:
-            self.confirmed_users[chat_id] = True
-            self.db.set("RandomHentai", "confirmed", self.confirmed_users)
+        chat_id = request["chat_id"]
+        cmd = request["cmd"]
+        tag = request["tag"]
+        
+        # Сохраняем подтверждение
+        self.confirmed_users[chat_id] = True
+        self.db.set("RandomHentai", "confirmed", self.confirmed_users)
         
         await call.delete()
         
-        # Передаём правильный объект для отправки
-        if cmd == "nsfw":
-            await self._get_nsfw(call, tag)
+        # Отправляем контент
+        if cmd == "nsfw" and tag:
+            await self._get_nsfw_by_id(chat_id, tag)
         else:
-            await self._get_nsfw(call, cmd)
+            await self._get_nsfw_by_id(chat_id, cmd)
     
     async def _cancel_cb(self, call):
         """Отмена"""
@@ -252,8 +263,13 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
         await call.answer("❌ Доступ запрещён")
     
     async def _get_nsfw(self, message, tag: str):
-        """Получение NSFW контента"""
-        msg = await utils.answer(message, self.strings("loading"))
+        """Получение NSFW контента из сообщения"""
+        chat_id = message.chat_id
+        await self._get_nsfw_by_id(chat_id, tag, message.reply_to_msg_id)
+    
+    async def _get_nsfw_by_id(self, chat_id: int, tag: str, reply_to=None):
+        """Получение NSFW контента по ID чата"""
+        msg = await self.client.send_message(chat_id, self.strings("loading"))
         
         try:
             url = self.endpoints.get(tag, self.endpoints["hentai"])
@@ -265,45 +281,33 @@ anal, ass, bdsm, blowjob, boobs, cum, creampie, double, femdom, footjob, gangban
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, timeout=10) as resp:
                     if resp.status != 200:
-                        await utils.answer(msg, self.strings("error").format(f"HTTP {resp.status}"))
+                        await self.client.edit_message(msg, self.strings("error").format(f"HTTP {resp.status}"))
                         return
                     
                     data = await resp.json()
                     
                     if not data.get("success"):
-                        await utils.answer(msg, self.strings("error").format("API вернул ошибку"))
+                        await self.client.edit_message(msg, self.strings("error").format("API вернул ошибку"))
                         return
                     
                     image_url = data.get("message")
                     if not image_url:
-                        await utils.answer(msg, self.strings("error").format("Нет URL"))
+                        await self.client.edit_message(msg, self.strings("error").format("Нет URL"))
                         return
                     
-                    # Определяем chat_id для отправки
-                    chat_id = None
-                    if hasattr(message, 'chat_id'):
-                        chat_id = message.chat_id
-                    elif hasattr(message, 'form') and hasattr(message.form, 'chat'):
-                        chat_id = message.form.chat.id
-                    elif hasattr(message, '_chat_id'):
-                        chat_id = message._chat_id
-                    
-                    if not chat_id:
-                        await utils.answer(msg, self.strings("error").format("Не могу определить чат"))
-                        return
+                    # Удаляем сообщение загрузки
+                    await msg.delete()
                     
                     # Отправляем картинку
                     await self.client.send_file(
                         chat_id,
                         image_url,
-                        reply_to=None,
+                        reply_to=reply_to,
                         caption=f"🔞 <b>{tag.upper()}</b>"
                     )
-                    
-                    await msg.delete()
             
         except asyncio.TimeoutError:
-            await utils.answer(msg, self.strings("error").format("Таймаут"))
+            await self.client.edit_message(msg, self.strings("error").format("Таймаут"))
         except Exception as e:
             logger.exception(f"NSFW error: {e}")
-            await utils.answer(msg, self.strings("error").format(str(e)))
+            await self.client.edit_message(msg, self.strings("error").format(str(e)))
