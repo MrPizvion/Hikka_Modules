@@ -23,8 +23,8 @@ class AutoUpdaterMod(loader.Module):
         "help": """<b>🔄 Auto Updater</b>
 
 <b>📋 Команды:</b>
-<code>.update</code> - проверить и обновить все модули
-<code>.update Название</code> - обновить конкретный модуль
+<code>.gitup</code> - проверить и обновить все модули
+<code>.gitup Название</code> - обновить конкретный модуль
 
 <b>⚙️ Настройка в конфиге:</b>
 <code>.config AutoUpdater</code>
@@ -32,7 +32,8 @@ class AutoUpdaterMod(loader.Module):
 
 <b>✨ Пример:</b>
 <code>.config AutoUpdater repo MrPizvion/Hikka_Modules</code>
-<code>.update</code>"""
+<code>.gitup</code>
+<code>.gitup Weather</code>"""
     }
 
     strings_ru = {
@@ -46,8 +47,8 @@ class AutoUpdaterMod(loader.Module):
         "help": """<b>🔄 Auto Updater</b>
 
 <b>📋 Команды:</b>
-<code>.update</code> - проверить и обновить все модули
-<code>.update Название</code> - обновить конкретный модуль
+<code>.gitup</code> - проверить и обновить все модули
+<code>.gitup Название</code> - обновить конкретный модуль
 
 <b>⚙️ Настройка в конфиге:</b>
 <code>.config AutoUpdater</code>
@@ -55,7 +56,8 @@ class AutoUpdaterMod(loader.Module):
 
 <b>✨ Пример:</b>
 <code>.config AutoUpdater repo MrPizvion/Hikka_Modules</code>
-<code>.update</code>"""
+<code>.gitup</code>
+<code>.gitup Weather</code>"""
     }
 
     def __init__(self):
@@ -72,8 +74,8 @@ class AutoUpdaterMod(loader.Module):
         self.client = client
         self.db = db
 
-    async def updatecmd(self, message):
-        """.update [название] - Обновить модули из репозитория"""
+    async def gitupcmd(self, message):
+        """.gitup [название] - Обновить модули из репозитория"""
         args = utils.get_args_raw(message)
         repo = self.config["repo"]
 
@@ -190,6 +192,6 @@ class AutoUpdaterMod(loader.Module):
 
         return True
 
-    async def updatehelpcmd(self, message):
+    async def gituphelpcmd(self, message):
         """Помощь по модулю"""
         await utils.answer(message, self.strings("help"))
