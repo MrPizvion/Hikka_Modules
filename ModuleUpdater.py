@@ -10,77 +10,89 @@ class SimpleUpdaterMod(loader.Module):
     
     strings = {
         "name": "SimpleUpdater",
-        "no_module": "❌ <b>Укажи название модуля!</b>\nПример: <code>.autoupd Weather</code>",
-        "no_url": "❌ <b>Не знаю URL для модуля {}</b>\nУкажи в конфиге: <code>.config SimpleUpdater</code>",
-        "not_found": "❌ <b>Модуль {} не найден!</b>",
+        "no_module": "❌ <b>Укажи название модуля!</b>\nПример: <code>.upd Weather</code>",
+        "no_url": "❌ <b>Нет URL для модуля {}</b>\nДобавь в конфиг: <code>.config SimpleUpdater</code>",
+        "not_found": "❌ <b>Модуль {} не найден!</b>\nПроверь список: <code>.modules</code>",
         "updating": "🔄 <b>Обновляю модуль {}...</b>",
         "success": "✅ <b>Модуль {} успешно обновлён!</b>",
         "error": "💥 <b>Ошибка:</b> {}",
         "help": """<b>🔄 Simple Updater</b>
 
 <b>📋 Команда:</b>
-<code>.autoupd &lt;название&gt;</code> - обновить модуль
+<code>.upd название</code> - обновить модуль
 
 <b>⚙️ Настройка URL в конфиге:</b>
 <code>.config SimpleUpdater</code>
 
 <b>✨ Пример:</b>
-<code>.autoupd Weather</code>
-
-<b>📝 Сначала укажи URL для модуля:</b>
-1. <code>.config SimpleUpdater</code>
-2. Добавь поле с названием модуля и URL"""
+<code>.upd Weather</code>
+<code>.upd DaysUntil</code>
+<code>.upd OsuProfile</code>"""
     }
     
     strings_ru = {
         "name": "SimpleUpdater",
-        "no_module": "❌ <b>Укажи название модуля!</b>\nПример: <code>.autoupd Weather</code>",
-        "no_url": "❌ <b>Не знаю URL для модуля {}</b>\nУкажи в конфиге: <code>.config SimpleUpdater</code>",
-        "not_found": "❌ <b>Модуль {} не найден!</b>",
+        "no_module": "❌ <b>Укажи название модуля!</b>\nПример: <code>.upd Weather</code>",
+        "no_url": "❌ <b>Нет URL для модуля {}</b>\nДобавь в конфиг: <code>.config SimpleUpdater</code>",
+        "not_found": "❌ <b>Модуль {} не найден!</b>\nПроверь список: <code>.modules</code>",
         "updating": "🔄 <b>Обновляю модуль {}...</b>",
         "success": "✅ <b>Модуль {} успешно обновлён!</b>",
         "error": "💥 <b>Ошибка:</b> {}",
         "help": """<b>🔄 Simple Updater</b>
 
 <b>📋 Команда:</b>
-<code>.autoupd &lt;название&gt;</code> - обновить модуль
+<code>.upd название</code> - обновить модуль
 
 <b>⚙️ Настройка URL в конфиге:</b>
 <code>.config SimpleUpdater</code>
 
 <b>✨ Пример:</b>
-<code>.autoupd Weather</code>
-
-<b>📝 Сначала укажи URL для модуля:</b>
-1. <code>.config SimpleUpdater</code>
-2. Добавь поле с названием модуля и URL"""
+<code>.upd Weather</code>
+<code>.upd DaysUntil</code>
+<code>.upd OsuProfile</code>"""
     }
     
     def __init__(self):
-        # Конфиг будет заполняться динамически
-        self.config = loader.ModuleConfig()
-        
-        # Словарь с URL по умолчанию
-        self.default_urls = {
-            "Weather": "https://raw.githubusercontent.com/MrPizvion/Hikka_Modules/main/Weather.py",
-            "OsuProfile": "https://raw.githubusercontent.com/MrPizvion/Hikka_Modules/main/osu_profile.py",
-            "DaysUntil": "https://raw.githubusercontent.com/MrPizvion/Hikka_Modules/main/DaysUntil.py",
-            "VideoToGif": "https://raw.githubusercontent.com/MrPizvion/Hikka_Modules/main/VideoToGif.py",
-            "Nsfwart": "https://raw.githubusercontent.com/MrPizvion/Hikka_Modules/main/Nsfwart.py",
-            "SimpleUpdater": "https://raw.githubusercontent.com/MrPizvion/Hikka_Modules/main/SimpleUpdater.py"
-        }
+        self.config = loader.ModuleConfig(
+            loader.ConfigValue(
+                "Weather",
+                "https://raw.githubusercontent.com/MrPizvion/Hikka_Modules/main/Weather.py",
+                "URL для Weather модуля",
+                validator=loader.validators.String()
+            ),
+            loader.ConfigValue(
+                "DaysUntil",
+                "https://raw.githubusercontent.com/MrPizvion/Hikka_Modules/main/DaysUntil.py",
+                "URL для DaysUntil модуля",
+                validator=loader.validators.String()
+            ),
+            loader.ConfigValue(
+                "OsuProfile",
+                "https://raw.githubusercontent.com/MrPizvion/Hikka_Modules/main/osu_profile.py",
+                "URL для OsuProfile модуля",
+                validator=loader.validators.String()
+            ),
+            loader.ConfigValue(
+                "VideoToGif",
+                "https://raw.githubusercontent.com/MrPizvion/Hikka_Modules/main/VideoToGif.py",
+                "URL для VideoToGif модуля",
+                validator=loader.validators.String()
+            ),
+            loader.ConfigValue(
+                "Nsfwart",
+                "https://raw.githubusercontent.com/MrPizvion/Hikka_Modules/main/Nsfwart.py",
+                "URL для Nsfwart модуля",
+                validator=loader.validators.String()
+            ),
+        )
     
     async def client_ready(self, client, db):
         self.client = client
         self.db = db
-        
-        # Добавляем URL из конфига в словарь
-        for key, value in self.config.items():
-            if key not in self.default_urls and value:
-                self.default_urls[key] = value
+        logger.info("✅ SimpleUpdater готов к работе")
     
-    async def autoupdcmd(self, message):
-        """.autoupd <название> - Обновить модуль"""
+    async def updcmd(self, message):
+        """<название> - Обновить модуль"""
         args = utils.get_args_raw(message)
         
         if not args:
@@ -88,32 +100,49 @@ class SimpleUpdaterMod(loader.Module):
             return
         
         module_name = args.strip()
+        logger.info(f"🔄 Запрос на обновление модуля: {module_name}")
         
-        # Ищем URL для модуля
-        url = None
-        
-        # Сначала проверяем в конфиге
-        if module_name in self.config:
-            url = self.config[module_name]
-        
-        # Потом в словаре по умолчанию
-        if not url and module_name in self.default_urls:
-            url = self.default_urls[module_name]
+        # Получаем URL из конфига
+        url = self.config.get(module_name, None)
         
         if not url:
-            await utils.answer(message, self.strings("no_url").format(module_name))
+            # Пробуем найти похожие названия
+            available = []
+            for key in self.config.keys():
+                if module_name.lower() in key.lower():
+                    available.append(key)
+            
+            if available:
+                await utils.answer(message, 
+                    f"❌ <b>Модуль '{module_name}' не найден в конфиге!</b>\n"
+                    f"📋 Доступные: {', '.join(available)}\n"
+                    f"💡 Используй точное название из списка")
+            else:
+                await utils.answer(message, 
+                    f"❌ <b>Нет URL для модуля {module_name}</b>\n"
+                    f"Добавь в конфиг: <code>.config SimpleUpdater</code>")
             return
         
-        # Проверяем, существует ли модуль
-        modules = self.db.get("hikka.modules", "loaded_modules", {})
-        module_key = None
+        # Получаем список загруженных модулей
+        all_modules = self.all_modules
+        logger.info(f"📋 Всего модулей загружено: {len(all_modules)}")
         
-        for key in modules:
-            if key.lower() == module_name.lower() or key.endswith(module_name):
-                module_key = key
+        # Ищем модуль по имени
+        found_module = None
+        for mod in all_modules:
+            mod_lower = mod.__class__.__name__.lower()
+            mod_name_lower = mod.strings.get("name", "").lower()
+            
+            if (module_name.lower() in mod_lower or 
+                module_name.lower() in mod_name_lower or
+                mod_lower.endswith(module_name.lower()) or
+                mod_name_lower.endswith(module_name.lower())):
+                found_module = mod
+                logger.info(f"✅ Найден модуль: {mod.__class__.__name__}")
                 break
         
-        if not module_key:
+        if not found_module:
+            logger.warning(f"❌ Модуль {module_name} не найден")
             await utils.answer(message, self.strings("not_found").format(module_name))
             return
         
@@ -121,11 +150,14 @@ class SimpleUpdaterMod(loader.Module):
         msg = await utils.answer(message, self.strings("updating").format(module_name))
         
         try:
-            # Выгружаем
-            logger.info(f"🔄 Выгружаю {module_key}")
-            await self.client.unload_module(module_key)
+            # Получаем точное имя класса
+            class_name = found_module.__class__.__name__
+            logger.info(f"📤 Выгружаю {class_name}")
             
-            await asyncio.sleep(1)
+            # Выгружаем
+            await self.client.unload_module(class_name)
+            
+            await asyncio.sleep(2)
             
             # Загружаем заново
             logger.info(f"📥 Загружаю из {url}")
@@ -137,6 +169,10 @@ class SimpleUpdaterMod(loader.Module):
             logger.error(f"Ошибка обновления: {e}")
             await utils.answer(msg, self.strings("error").format(str(e)))
     
-    async def setupdhelpcmd(self, message):
-        """Помощь по модулю"""
-        await utils.answer(message, self.strings("help"))
+    async def updhelpcmd(self, message):
+        """Показать помощь"""
+        # Получаем список доступных модулей из конфига
+        available = ", ".join(self.config.keys())
+        
+        text = self.strings("help") + f"\n\n📦 <b>Доступные модули:</b>\n{available}"
+        await utils.answer(message, text)
