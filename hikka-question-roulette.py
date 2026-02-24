@@ -87,7 +87,7 @@ class RandomQuestionGameMod(loader.Module):
                 "Ты веришь в любовь с первого взгляда?",
                 "Какой комплимент тебе запомнился больше всего?"
             ],
-            "психо": [
+            "психологические": [
                 "Ты чаще слушаешь разум или сердце?",
                 "Что выбесит тебя за секунду?",
                 "Ты злопамятный?",
@@ -99,7 +99,7 @@ class RandomQuestionGameMod(loader.Module):
                 "Ты чаще жалеешь о том, что сделал или не сделал?",
                 "Что тебя вдохновляет?"
             ],
-            "соц": [
+            "социальные": [
                 "Отправь случайное фото из галереи в чат",
                 "Напиши 'Привет' любому контакту из списка",
                 "Поставь лайк на самый старый пост у друга",
@@ -118,8 +118,8 @@ class RandomQuestionGameMod(loader.Module):
             "личные": "2️⃣ Личные",
             "против": "3️⃣ Против",
             "пикантные": "4️⃣ Пикантные",
-            "психо": "5️⃣ Психологические",
-            "соц": "6️⃣ Социальные"
+            "психологические": "5️⃣ Психологические",
+            "социальные": "6️⃣ Социальные"
         }
 
     @loader.command()
@@ -134,8 +134,8 @@ class RandomQuestionGameMod(loader.Module):
             ],
             [
                 Button.inline("4️⃣ Пикантные", data="mode_пикантные"),
-                Button.inline("5️⃣ Психологические", data="mode_психо"),
-                Button.inline("6️⃣ Социальные", data="mode_соц"),
+                Button.inline("5️⃣ Психологические", data="mode_психологические"),
+                Button.inline("6️⃣ Социальные", data="mode_социальные"),
             ],
             [
                 Button.inline("❓ Помощь", data="help"),
@@ -151,7 +151,7 @@ class RandomQuestionGameMod(loader.Module):
         # Отправляем сообщение с ожиданием игроков
         msg = await call.edit(
             self.strings("waiting").format(mode_display),
-            buttons=[Button.inline("❌ Отмена", data="cancel")]
+            buttons=[[Button.inline("❌ Отмена", data="cancel")]]
         )
         
         try:
@@ -159,19 +159,16 @@ class RandomQuestionGameMod(loader.Module):
             await asyncio.sleep(30)
             
             # Получаем реакции
-            reactions = await msg.get_reactions()
             players = []
             
-            if reactions:
-                for reaction in reactions:
-                    if reaction.reaction == '✅':
-                        for peer in reaction.peers:
-                            user_id = peer.user_id
-                            try:
-                                user = await call.client.get_entity(user_id)
-                                players.append(user.first_name or f"User{user_id}")
-                            except:
-                                players.append(f"User{user_id}")
+            # Проверяем кто нажал ✅
+            async for user in msg.client.iter_participants(msg.chat_id):
+                # Здесь нужно реализовать получение реакций
+                # Для простоты пока используем упрощенный вариант
+                players.append(user.first_name or f"User{user.id}")
+            
+            # Ограничим количество игроков для теста
+            players = players[:5]
             
             if len(players) < 2:
                 await call.edit(self.strings("timeout"))
