@@ -1,4 +1,4 @@
-# meta developer: @yourusername
+# meta developer: @Mr_Pivion
 # meta pic: none
 # meta banner: none
 
