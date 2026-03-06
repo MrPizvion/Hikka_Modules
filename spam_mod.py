@@ -55,7 +55,7 @@ class SpamMod(loader.Module):
                 if not self.spam_active:
                     break
                 await message.client.send_message(message.chat_id, text)
-                await asyncio.sleep(0.5)  # Задержка между сообщениями
+                await asyncio.sleep(0.1)  # Задержка между сообщениями
                 
             if self.spam_active:
                 await utils.answer(message, self.strings("spam_done"))
