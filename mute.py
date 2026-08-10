@@ -6,7 +6,6 @@
 from .. import loader, utils
 import datetime
 import asyncio
-from typing import Dict, Optional
 from telethon import events
 
 @loader.tds
@@ -15,7 +14,7 @@ class SilentMuteMod(loader.Module):
     
     strings = {
         "name": "SilentMute",
-        "no_args": "🚫 Укажите пользователя и время.",
+        "no_args": "🚫 Ответьте на сообщение пользователя или укажите ID.",
         "user_not_found": "👤 Пользователь не найден.",
         "invalid_time": "⏰ Укажите корректное время (например: 5m, 1h, 2d).",
         "already_muted": "🔇 Пользователь уже в муте.",
@@ -25,7 +24,7 @@ class SilentMuteMod(loader.Module):
         "mute_list": "📋 Список замьюченных пользователей:\n{users}",
         "no_muted_users": "📭 Нет замьюченных пользователей.",
         "mute_timeout": "⏰ Мут пользователя {user} истёк.",
-        "config_timeout": "Время мута по умолчанию (в минутах)",
+        "deleted_message": "🗑️ Сообщение удалено (мут)",
     }
     
     def __init__(self):
@@ -37,7 +36,7 @@ class SilentMuteMod(loader.Module):
                 validator=loader.validators.Integer(minimum=1, maximum=1440),
             ),
         )
-        self.muted_users: Dict[int, Dict] = {}  # user_id: {"until": datetime, "chat_id": int}
+        self.muted_users: dict = {}
         self._tasks = []
         self._handler = None
     
@@ -47,15 +46,17 @@ class SilentMuteMod(loader.Module):
         self.muted_users = self.db.get("SilentMute", "muted_users", {})
         
         # Восстановление таймеров после перезагрузки
-        for user_id, data in self.muted_users.items():
-            if data.get("until"):
+        for user_id, data in list(self.muted_users.items()):
+            try:
                 until = datetime.datetime.fromisoformat(data["until"])
                 if until > datetime.datetime.now():
                     self._schedule_unmute(int(user_id), until, data.get("chat_id"))
                 else:
                     await self._unmute_user(int(user_id), data.get("chat_id"))
+            except:
+                pass
         
-        # Регистрируем обработчик сообщений
+        # Регистрируем обработчик
         await self._register_handler()
     
     async def _register_handler(self):
@@ -71,117 +72,110 @@ class SilentMuteMod(loader.Module):
             # Проверяем, есть ли пользователь в муте
             if event.sender_id in self.muted_users:
                 mute_data = self.muted_users[event.sender_id]
-                # Проверяем, что это тот же чат
+                
+                # Проверяем, что это тот же чат и мут не истек
                 if mute_data.get("chat_id") == event.chat_id:
-                    # Проверяем, не истек ли мут
-                    until = datetime.datetime.fromisoformat(mute_data["until"])
-                    if until > datetime.datetime.now():
-                        try:
+                    try:
+                        until = datetime.datetime.fromisoformat(mute_data["until"])
+                        if until > datetime.datetime.now():
+                            # Удаляем сообщение
                             await event.delete()
                             return True
-                        except Exception as e:
-                            pass
-                    else:
-                        # Если мут истек - размучиваем
-                        await self._unmute_user(event.sender_id, event.chat_id)
+                        else:
+                            # Если мут истек - размучиваем
+                            await self._unmute_user(event.sender_id, event.chat_id)
+                    except Exception as e:
+                        pass
             return False
         
         self._handler = message_handler
     
+    @loader.command()
     async def mutecmd(self, message):
-        """🔇 Замутить пользователя (тихое удаление сообщений)
-        Использование: .mute <@username/reply> <время>
-        Пример: .mute @username 5m
-        Время: s - секунды, m - минуты, h - часы, d - дни"""
+        """🔇 Замутить пользователя (ответом на сообщение)
+        Использование: .mute <время> (ответом на сообщение)
+        Пример: .mute 5m (ответом на сообщение пользователя)"""
         
-        args = utils.get_args_raw(message)
         reply = await message.get_reply_message()
+        if not reply:
+            return await utils.answer(message, "🚫 Ответьте на сообщение пользователя, которого хотите замутить!")
         
-        # Определяем пользователя
-        user = None
-        if reply:
-            user = reply.sender_id
-            args_parts = args.split()
-            time_str = args_parts[0] if args_parts else None
-        else:
-            if not args:
-                return await utils.answer(message, self.strings("no_args"))
-            args_parts = args.split()
-            try:
-                user_entity = await self.client.get_entity(args_parts[0])
-                user = user_entity.id
-                time_str = args_parts[1] if len(args_parts) > 1 else None
-            except Exception:
-                return await utils.answer(message, self.strings("user_not_found"))
+        user_id = reply.sender_id
+        chat_id = message.chat_id
+        
+        # Проверяем, не админ ли это
+        try:
+            participant = await self.client.get_permissions(chat_id, user_id)
+            if participant.is_admin or participant.is_creator:
+                return await utils.answer(message, "❌ Нельзя замутить администратора!")
+        except:
+            pass
         
         # Парсим время
-        if not time_str:
-            time_minutes = self.config["default_mute_time"]
-        else:
-            time_seconds = self._parse_time(time_str)
+        args = utils.get_args_raw(message)
+        if args:
+            time_seconds = self._parse_time(args)
             if time_seconds is None:
                 return await utils.answer(message, self.strings("invalid_time"))
             time_minutes = time_seconds / 60
+        else:
+            time_minutes = self.config["default_mute_time"]
         
         # Проверяем, не замьючен ли уже
-        if user in self.muted_users and self.muted_users[user].get("chat_id") == message.chat_id:
+        if user_id in self.muted_users and self.muted_users[user_id].get("chat_id") == chat_id:
             return await utils.answer(message, self.strings("already_muted"))
         
         # Вычисляем время окончания
         until = datetime.datetime.now() + datetime.timedelta(minutes=time_minutes)
         
         # Сохраняем в базу данных
-        self.muted_users[user] = {
+        self.muted_users[user_id] = {
             "until": until.isoformat(),
-            "chat_id": message.chat_id,
+            "chat_id": chat_id,
         }
         self.db.set("SilentMute", "muted_users", self.muted_users)
         
         # Запускаем таймер
-        self._schedule_unmute(user, until, message.chat_id)
+        self._schedule_unmute(user_id, until, chat_id)
         
-        user_entity = await self.client.get_entity(user)
+        user_entity = await self.client.get_entity(user_id)
         await utils.answer(
             message,
             self.strings("muted").format(
-                user=utils.escape_html(user_entity.first_name or str(user)),
+                user=utils.escape_html(user_entity.first_name or str(user_id)),
                 time=self._format_time(time_minutes * 60)
             )
         )
     
+    @loader.command()
     async def unmutecmd(self, message):
-        """🔊 Размутить пользователя
-        Использование: .unmute <@username/reply>"""
+        """🔊 Размутить пользователя (ответом на сообщение)
+        Использование: .unmute (ответом на сообщение)"""
         
-        args = utils.get_args_raw(message)
         reply = await message.get_reply_message()
+        if not reply:
+            return await utils.answer(message, "🚫 Ответьте на сообщение пользователя, которого хотите размутить!")
         
-        user = None
-        if reply:
-            user = reply.sender_id
-        elif args:
-            try:
-                user_entity = await self.client.get_entity(args)
-                user = user_entity.id
-            except Exception:
-                return await utils.answer(message, self.strings("user_not_found"))
-        else:
-            return await utils.answer(message, self.strings("no_args"))
+        user_id = reply.sender_id
+        chat_id = message.chat_id
         
-        if user not in self.muted_users:
+        if user_id not in self.muted_users:
             return await utils.answer(message, self.strings("not_muted"))
         
-        chat_id = self.muted_users[user].get("chat_id")
-        await self._unmute_user(user, chat_id)
+        if self.muted_users[user_id].get("chat_id") != chat_id:
+            return await utils.answer(message, "❌ Этот пользователь не замьючен в этом чате!")
         
-        user_entity = await self.client.get_entity(user)
+        await self._unmute_user(user_id, chat_id)
+        
+        user_entity = await self.client.get_entity(user_id)
         await utils.answer(
             message,
             self.strings("unmuted").format(
-                user=utils.escape_html(user_entity.first_name or str(user))
+                user=utils.escape_html(user_entity.first_name or str(user_id))
             )
         )
     
+    @loader.command()
     async def mutelistcmd(self, message):
         """📋 Показать список замьюченных пользователей"""
         if not self.muted_users:
@@ -189,21 +183,30 @@ class SilentMuteMod(loader.Module):
         
         users_list = []
         current_time = datetime.datetime.now()
+        chat_id = message.chat_id
         
-        for user_id, data in self.muted_users.items():
+        for user_id, data in list(self.muted_users.items()):
+            if data.get("chat_id") != chat_id:
+                continue
+                
             try:
                 user_entity = await self.client.get_entity(int(user_id))
                 name = user_entity.first_name or str(user_id)
-            except Exception:
+            except:
                 name = f"User {user_id}"
             
-            until = datetime.datetime.fromisoformat(data["until"])
-            remaining = until - current_time
-            if remaining.total_seconds() > 0:
-                time_left = self._format_time(remaining.total_seconds())
-                users_list.append(f"• {utils.escape_html(name)} - {time_left}")
-            else:
-                users_list.append(f"• {utils.escape_html(name)} - ⏰ истекло")
+            try:
+                until = datetime.datetime.fromisoformat(data["until"])
+                remaining = until - current_time
+                if remaining.total_seconds() > 0:
+                    time_left = self._format_time(remaining.total_seconds())
+                    users_list.append(f"• {utils.escape_html(name)} - {time_left}")
+                else:
+                    users_list.append(f"• {utils.escape_html(name)} - ⏰ истекло (скоро будет размучен)")
+                    # Автоматически размучиваем, если время истекло
+                    await self._unmute_user(int(user_id), chat_id)
+            except:
+                pass
         
         if not users_list:
             return await utils.answer(message, self.strings("no_muted_users"))
@@ -213,19 +216,18 @@ class SilentMuteMod(loader.Module):
             self.strings("mute_list").format(users="\n".join(users_list))
         )
     
-    def _parse_time(self, time_str: str) -> Optional[int]:
+    def _parse_time(self, time_str: str):
         """Парсит время из строки (5m, 1h, 30s, 2d)"""
         if not time_str:
             return None
         
         time_str = time_str.lower().strip()
-        if time_str[-1].isdigit():
-            # Если нет суффикса, считаем минутами
-            try:
-                return int(time_str) * 60
-            except ValueError:
-                return None
         
+        # Если просто число - считаем минутами
+        if time_str.isdigit():
+            return int(time_str) * 60
+        
+        # Парсим с суффиксом
         unit = time_str[-1]
         try:
             value = int(time_str[:-1])
@@ -266,10 +268,13 @@ class SilentMuteMod(loader.Module):
     def _schedule_unmute(self, user_id: int, until: datetime.datetime, chat_id: int):
         """Запускает таймер для размута"""
         async def unmute_task():
-            now = datetime.datetime.now()
-            if until > now:
-                await asyncio.sleep((until - now).total_seconds())
-                await self._unmute_user(user_id, chat_id)
+            try:
+                now = datetime.datetime.now()
+                if until > now:
+                    await asyncio.sleep((until - now).total_seconds())
+                    await self._unmute_user(user_id, chat_id)
+            except Exception as e:
+                pass
         
         task = asyncio.create_task(unmute_task())
         self._tasks.append(task)
@@ -294,7 +299,10 @@ class SilentMuteMod(loader.Module):
     async def on_unload(self):
         """Отмена всех таймеров при выгрузке модуля"""
         if self._handler:
-            self.client.remove_event_handler(self._handler)
+            try:
+                self.client.remove_event_handler(self._handler)
+            except:
+                pass
         
         for task in self._tasks:
             if not task.done():
