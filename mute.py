@@ -7,6 +7,7 @@ from .. import loader, utils
 import datetime
 import asyncio
 from typing import Dict, Optional
+from telethon import events
 
 @loader.tds
 class SilentMuteMod(loader.Module):
@@ -38,6 +39,7 @@ class SilentMuteMod(loader.Module):
         )
         self.muted_users: Dict[int, Dict] = {}  # user_id: {"until": datetime, "chat_id": int}
         self._tasks = []
+        self._handler = None
     
     async def client_ready(self, client, db):
         self.db = db
@@ -52,18 +54,39 @@ class SilentMuteMod(loader.Module):
                     self._schedule_unmute(int(user_id), until, data.get("chat_id"))
                 else:
                     await self._unmute_user(int(user_id), data.get("chat_id"))
+        
+        # Регистрируем обработчик сообщений
+        await self._register_handler()
     
-    async def on_message(self, message):
-        """Обработчик новых сообщений"""
-        if not message.out and message.sender_id in self.muted_users:
-            chat_id = self.muted_users[message.sender_id].get("chat_id")
-            if chat_id == message.chat_id:
-                try:
-                    await message.delete()
-                    return True
-                except Exception:
-                    pass
-        return False
+    async def _register_handler(self):
+        """Регистрирует обработчик для удаления сообщений"""
+        if self._handler:
+            self.client.remove_event_handler(self._handler)
+        
+        @self.client.on(events.NewMessage)
+        async def message_handler(event):
+            if event.out:
+                return
+            
+            # Проверяем, есть ли пользователь в муте
+            if event.sender_id in self.muted_users:
+                mute_data = self.muted_users[event.sender_id]
+                # Проверяем, что это тот же чат
+                if mute_data.get("chat_id") == event.chat_id:
+                    # Проверяем, не истек ли мут
+                    until = datetime.datetime.fromisoformat(mute_data["until"])
+                    if until > datetime.datetime.now():
+                        try:
+                            await event.delete()
+                            return True
+                        except Exception as e:
+                            pass
+                    else:
+                        # Если мут истек - размучиваем
+                        await self._unmute_user(event.sender_id, event.chat_id)
+            return False
+        
+        self._handler = message_handler
     
     async def mutecmd(self, message):
         """🔇 Замутить пользователя (тихое удаление сообщений)
@@ -85,8 +108,8 @@ class SilentMuteMod(loader.Module):
                 return await utils.answer(message, self.strings("no_args"))
             args_parts = args.split()
             try:
-                user = await self.client.get_entity(args_parts[0])
-                user = user.id
+                user_entity = await self.client.get_entity(args_parts[0])
+                user = user_entity.id
                 time_str = args_parts[1] if len(args_parts) > 1 else None
             except Exception:
                 return await utils.answer(message, self.strings("user_not_found"))
@@ -108,7 +131,7 @@ class SilentMuteMod(loader.Module):
         until = datetime.datetime.now() + datetime.timedelta(minutes=time_minutes)
         
         # Сохраняем в базу данных
-        self.muted_users[str(user)] = {
+        self.muted_users[user] = {
             "until": until.isoformat(),
             "chat_id": message.chat_id,
         }
@@ -138,8 +161,8 @@ class SilentMuteMod(loader.Module):
             user = reply.sender_id
         elif args:
             try:
-                user = await self.client.get_entity(args)
-                user = user.id
+                user_entity = await self.client.get_entity(args)
+                user = user_entity.id
             except Exception:
                 return await utils.answer(message, self.strings("user_not_found"))
         else:
@@ -165,6 +188,8 @@ class SilentMuteMod(loader.Module):
             return await utils.answer(message, self.strings("no_muted_users"))
         
         users_list = []
+        current_time = datetime.datetime.now()
+        
         for user_id, data in self.muted_users.items():
             try:
                 user_entity = await self.client.get_entity(int(user_id))
@@ -173,7 +198,7 @@ class SilentMuteMod(loader.Module):
                 name = f"User {user_id}"
             
             until = datetime.datetime.fromisoformat(data["until"])
-            remaining = until - datetime.datetime.now()
+            remaining = until - current_time
             if remaining.total_seconds() > 0:
                 time_left = self._format_time(remaining.total_seconds())
                 users_list.append(f"• {utils.escape_html(name)} - {time_left}")
@@ -220,6 +245,7 @@ class SilentMuteMod(loader.Module):
     
     def _format_time(self, seconds: int) -> str:
         """Форматирует время в человекочитаемый вид"""
+        seconds = int(seconds)
         days = seconds // 86400
         hours = (seconds % 86400) // 3600
         minutes = (seconds % 3600) // 60
@@ -227,13 +253,13 @@ class SilentMuteMod(loader.Module):
         
         parts = []
         if days > 0:
-            parts.append(f"{int(days)}д")
+            parts.append(f"{days}д")
         if hours > 0:
-            parts.append(f"{int(hours)}ч")
+            parts.append(f"{hours}ч")
         if minutes > 0:
-            parts.append(f"{int(minutes)}м")
+            parts.append(f"{minutes}м")
         if secs > 0 and not parts:
-            parts.append(f"{int(secs)}с")
+            parts.append(f"{secs}с")
         
         return " ".join(parts) if parts else "0м"
     
@@ -250,9 +276,8 @@ class SilentMuteMod(loader.Module):
     
     async def _unmute_user(self, user_id: int, chat_id: int):
         """Размучивает пользователя"""
-        user_id_str = str(user_id)
-        if user_id_str in self.muted_users:
-            del self.muted_users[user_id_str]
+        if user_id in self.muted_users:
+            del self.muted_users[user_id]
             self.db.set("SilentMute", "muted_users", self.muted_users)
             
             try:
@@ -268,6 +293,9 @@ class SilentMuteMod(loader.Module):
     
     async def on_unload(self):
         """Отмена всех таймеров при выгрузке модуля"""
+        if self._handler:
+            self.client.remove_event_handler(self._handler)
+        
         for task in self._tasks:
             if not task.done():
                 task.cancel()
