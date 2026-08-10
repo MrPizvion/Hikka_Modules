@@ -1,15 +1,13 @@
-# meta developer: @Mr_Pizvion
+# meta developer: @your_username
 # meta pic: https://img.icons8.com/color/48/000000/mute.png
 # meta banner: https://via.placeholder.com/300x100.png?text=Mute+Module
 
 import asyncio
 import re
 import time
-from datetime import timedelta
 
 from telethon.tl.types import Message
-from telethon.tl.functions.channels import EditBannedRequest
-from telethon.tl.types import ChatBannedRights
+from telethon.tl.functions.messages import DeleteMessagesRequest
 
 from .. import loader, utils
 
@@ -41,7 +39,7 @@ class MuteMod(loader.Module):
     }
 
     def __init__(self):
-        self.muted_users = {}  # {chat_id: {user_id: unmute_time}}
+        self.muted_users = {}
         self.config = loader.ModuleConfig(
             loader.ConfigValue(
                 "delete_service_messages",
@@ -59,25 +57,40 @@ class MuteMod(loader.Module):
     @loader.watcher(out=False)
     async def watcher(self, message: Message):
         """Следит за новыми сообщениями и удаляет их если пользователь замучен"""
-        if not message.is_private:
-            chat_id = message.chat_id
-            user_id = message.sender_id
+        user_id = message.sender_id
+        
+        # Игнорируем свои сообщения
+        if user_id == self._me.id:
+            return
+        
+        # Проверяем, замучен ли отправитель
+        if user_id not in self.muted_users:
+            return
             
-            if chat_id in self.muted_users:
-                if user_id in self.muted_users[chat_id]:
-                    mute_data = self.muted_users[chat_id][user_id]
-                    
-                    # Проверяем не истекло ли время
-                    if time.time() >= mute_data["until"]:
-                        del self.muted_users[chat_id][user_id]
-                        if not self.muted_users[chat_id]:
-                            del self.muted_users[chat_id]
-                        return
-                    
-                    try:
-                        await message.delete()
-                    except:
-                        pass
+        mute_data = self.muted_users[user_id]
+        
+        # Проверяем не истекло ли время
+        if time.time() >= mute_data["until"]:
+            del self.muted_users[user_id]
+            return
+        
+        # Удаляем сообщение
+        try:
+            if message.is_private:
+                # В ЛС используем специальный метод для удаления
+                await self.client(DeleteMessagesRequest(
+                    id=[message.id],
+                    revoke=True
+                ))
+            else:
+                # В группах используем обычный метод
+                await message.delete()
+        except Exception as e:
+            # Логируем ошибку для отладки
+            try:
+                await self.client.send_message("me", f"❌ Ошибка удаления: {e}")
+            except:
+                pass
 
     async def mutecmd(self, message: Message):
         """Ответом на сообщение: .mute <время> или .mute @user <время>"""
@@ -96,7 +109,6 @@ class MuteMod(loader.Module):
             user = await message.client.get_entity(reply.sender_id)
             time_str = args
         else:
-            # Ищем @username и время в аргументах
             parts = args.split()
             if len(parts) >= 2:
                 username = parts[0]
@@ -124,22 +136,17 @@ class MuteMod(loader.Module):
             await utils.answer(message, self.strings("no_time"))
             return
         
-        chat_id = message.chat_id
         user_id = user.id
         
-        # Инициализируем словарь для чата если нужно
-        if chat_id not in self.muted_users:
-            self.muted_users[chat_id] = {}
-        
         # Проверяем не замучен ли уже
-        if user_id in self.muted_users[chat_id]:
-            if time.time() < self.muted_users[chat_id][user_id]["until"]:
+        if user_id in self.muted_users:
+            if time.time() < self.muted_users[user_id]["until"]:
                 await utils.answer(message, self.strings("already_muted"))
                 return
         
         # Устанавливаем мут
         unmute_time = time.time() + mute_seconds
-        self.muted_users[chat_id][user_id] = {
+        self.muted_users[user_id] = {
             "until": unmute_time,
             "username": user.first_name or user.username or str(user.id)
         }
@@ -151,54 +158,39 @@ class MuteMod(loader.Module):
         await utils.answer(message, self.strings("muted").format(user=user_name, time=time_display))
         
         # Создаем задачу для автоматического размута
-        asyncio.ensure_future(self._auto_unmute(chat_id, user_id, mute_seconds, message, user_name))
+        asyncio.ensure_future(self._auto_unmute(user_id, mute_seconds, message, user_name))
 
     async def unmuteallcmd(self, message: Message):
-        """Снять мут со всех пользователей в чате"""
-        chat_id = message.chat_id
-        
-        if chat_id not in self.muted_users or not self.muted_users[chat_id]:
-            await utils.answer(message, "✅ <b>Нет замученных пользователей</b>")
-            return
-        
-        count = len(self.muted_users[chat_id])
-        del self.muted_users[chat_id]
+        """Снять мут со всех пользователей"""
+        count = len(self.muted_users)
+        self.muted_users.clear()
         await utils.answer(message, f"🔈 <b>Снят мут с {count} пользователей</b>")
     
     async def mutelistcmd(self, message: Message):
         """Показать список замученных пользователей"""
-        chat_id = message.chat_id
-        
-        if chat_id not in self.muted_users or not self.muted_users[chat_id]:
-            await utils.answer(message, "📋 <b>Список замученных пуст</b>")
-            return
-        
         current_time = time.time()
         text = "🔇 <b>Замученные пользователи:</b>\n\n"
         
-        for user_id, data in list(self.muted_users[chat_id].items()):
+        for user_id, data in list(self.muted_users.items()):
             if current_time >= data["until"]:
-                del self.muted_users[chat_id][user_id]
+                del self.muted_users[user_id]
                 continue
             
             remaining = int(data["until"] - current_time)
             time_left = self._format_time(remaining)
             text += f"• {data['username']} | Осталось: {time_left}\n"
         
-        if not self.muted_users[chat_id]:
-            del self.muted_users[chat_id]
+        if not self.muted_users:
             text = "📋 <b>Список замученных пуст</b>"
         
         await utils.answer(message, text)
 
-    async def _auto_unmute(self, chat_id, user_id, seconds, message, user_name):
+    async def _auto_unmute(self, user_id, seconds, message, user_name):
         """Автоматически снимает мут по истечении времени"""
         await asyncio.sleep(seconds)
         
-        if chat_id in self.muted_users and user_id in self.muted_users[chat_id]:
-            del self.muted_users[chat_id][user_id]
-            if not self.muted_users[chat_id]:
-                del self.muted_users[chat_id]
+        if user_id in self.muted_users:
+            del self.muted_users[user_id]
             
             try:
                 await utils.answer(message, self.strings("auto_unmute").format(user=user_name))
