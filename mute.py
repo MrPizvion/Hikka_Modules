@@ -1,4 +1,4 @@
-# meta developer: @your_username
+# meta developer: @Mr_Pizvion
 # meta pic: https://img.icons8.com/color/48/000000/mute.png
 # meta banner: https://via.placeholder.com/300x100.png?text=Mute+Module
 
