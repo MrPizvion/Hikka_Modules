@@ -77,11 +77,24 @@ class MuteMod(loader.Module):
         # Удаляем сообщение
         try:
             if message.is_private:
-                # В ЛС используем специальный метод для удаления
-                await self.client(DeleteMessagesRequest(
-                    id=[message.id],
-                    revoke=True
-                ))
+                # В ЛС пробуем разные методы удаления
+                try:
+                    # Сначала пробуем через delete_messages
+                    await self.client.delete_messages(
+                        message.chat_id,
+                        [message.id],
+                        revoke=True
+                    )
+                except:
+                    try:
+                        # Если не получилось, пробуем через прямой вызов
+                        await self.client(DeleteMessagesRequest(
+                            id=[message.id],
+                            revoke=True
+                        ))
+                    except:
+                        # Последний вариант - просто message.delete()
+                        await message.delete()
             else:
                 # В группах используем обычный метод
                 await message.delete()
