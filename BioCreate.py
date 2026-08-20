@@ -1,4 +1,4 @@
-# meta developer: @Edu_kak_xochu
+# meta developer: @Edu_kak_xochu 
 # meta pic: https://img.icons8.com/color/48/000000/biography.png
 # meta banner: https://via.placeholder.com/300x100.png?text=Bio+Creator
 
