@@ -32,21 +32,21 @@ class ChatManagerMod(loader.Module):
         self.config = loader.ModuleConfig(
             loader.ConfigValue(
                 "entertainment_chat_id",
-                None,
+                "",
                 "ID чата развлечений",
-                validator=loader.validators.Integer(allow_none=True),
+                validator=loader.validators.String(),
             ),
             loader.ConfigValue(
                 "tech_chat_id",
-                None,
+                "",
                 "ID технического чата",
-                validator=loader.validators.Integer(allow_none=True),
+                validator=loader.validators.String(),
             ),
             loader.ConfigValue(
                 "ai_chat_id",
-                None,
+                "",
                 "ID AI чата",
-                validator=loader.validators.Integer(allow_none=True),
+                validator=loader.validators.String(),
             ),
         )
         self.chats_created = False
@@ -86,7 +86,7 @@ class ChatManagerMod(loader.Module):
                 users=[self._me.id],
                 title="🎮 Развлечения"
             ))
-            ent_chat_id = ent_result.chats[0].id
+            ent_chat_id = str(ent_result.chats[0].id)
             self.config["entertainment_chat_id"] = ent_chat_id
             
             # Создаем технический чат
@@ -94,7 +94,7 @@ class ChatManagerMod(loader.Module):
                 users=[self._me.id],
                 title="🔧 Технический"
             ))
-            tech_chat_id = tech_result.chats[0].id
+            tech_chat_id = str(tech_result.chats[0].id)
             self.config["tech_chat_id"] = tech_chat_id
             
             # Создаем AI чат
@@ -102,7 +102,7 @@ class ChatManagerMod(loader.Module):
                 users=[self._me.id],
                 title="🤖 AI Модули"
             ))
-            ai_chat_id = ai_result.chats[0].id
+            ai_chat_id = str(ai_result.chats[0].id)
             self.config["ai_chat_id"] = ai_chat_id
             
             self.chats_created = True
