@@ -22,8 +22,6 @@ class TechUtilsMod(loader.Module):
         "ping_error": "❌ <b>Ошибка пинга:</b> {error}",
         "dns_result": "🌐 <b>DNS записи для {domain}:</b>\n\n{records}",
         "dns_error": "❌ <b>Ошибка DNS:</b> {error}",
-        "port_open": "✅ <b>Порт {port} открыт</b>",
-        "port_closed": "❌ <b>Порт {port} закрыт</b>",
         "port_scan": "🔍 <b>Сканирование портов {host}:</b>\n\n{results}",
         "converting": "🔄 <b>Конвертирую файл...</b>",
         "converted": "✅ <b>Файл сконвертирован!</b>",
@@ -35,6 +33,7 @@ class TechUtilsMod(loader.Module):
         "no_domain": "⚠️ <b>Укажите домен!</b>",
         "no_host": "⚠️ <b>Укажите хост!</b>",
         "no_file": "⚠️ <b>Ответьте на файл для конвертации!</b>",
+        "help": "📖 <b>Команды TechUtils:</b>\n\n<b>.tping</b> - пинг хоста\n<b>.tdns</b> - DNS запросы\n<b>.tport</b> - сканирование портов\n<b>.tconvert</b> - конвертация файлов\n<b>.tscreen</b> - скриншот сайта\n<b>.techhelp</b> - справка",
     }
     
     strings_ru = {
@@ -43,8 +42,6 @@ class TechUtilsMod(loader.Module):
         "ping_error": "❌ <b>Ошибка пинга:</b> {error}",
         "dns_result": "🌐 <b>DNS записи для {domain}:</b>\n\n{records}",
         "dns_error": "❌ <b>Ошибка DNS:</b> {error}",
-        "port_open": "✅ <b>Порт {port} открыт</b>",
-        "port_closed": "❌ <b>Порт {port} закрыт</b>",
         "port_scan": "🔍 <b>Сканирование портов {host}:</b>\n\n{results}",
         "converting": "🔄 <b>Конвертирую файл...</b>",
         "converted": "✅ <b>Файл сконвертирован!</b>",
@@ -56,6 +53,7 @@ class TechUtilsMod(loader.Module):
         "no_domain": "⚠️ <b>Укажите домен!</b>",
         "no_host": "⚠️ <b>Укажите хост!</b>",
         "no_file": "⚠️ <b>Ответьте на файл для конвертации!</b>",
+        "help": "📖 <b>Команды TechUtils:</b>\n\n<b>.tping</b> - пинг хоста\n<b>.tdns</b> - DNS запросы\n<b>.tport</b> - сканирование портов\n<b>.tconvert</b> - конвертация файлов\n<b>.tscreen</b> - скриншот сайта\n<b>.techhelp</b> - справка",
     }
 
     def __init__(self):
@@ -68,15 +66,18 @@ class TechUtilsMod(loader.Module):
             ),
         )
 
-    async def pingcmd(self, message: Message):
-        """Пинг хоста: .ping <host>"""
+    @loader.command()
+    async def tpingcmd(self, message: Message):
+        """Пинг хоста: .tping <host>"""
         args = utils.get_args_raw(message)
         if not args:
-            await utils.answer(message, "⚠️ <b>Укажите хост!</b>")
+            await utils.answer(message, "⚠️ <b>Укажите хост!</b>\n\nПример: <code>.tping google.com</code>")
             return
         
         host = args.split()[0]
         count = "-n 4" if platform.system().lower() == "windows" else "-c 4"
+        
+        await utils.answer(message, f"📡 <b>Пингую {host}...</b>")
         
         try:
             result = subprocess.run(
@@ -96,14 +97,17 @@ class TechUtilsMod(loader.Module):
         except Exception as e:
             await utils.answer(message, f"❌ <b>Ошибка:</b> {e}")
 
-    async def dnscmd(self, message: Message):
-        """DNS запрос: .dns <domain>"""
+    @loader.command()
+    async def tdnscmd(self, message: Message):
+        """DNS запрос: .tdns <domain>"""
         args = utils.get_args_raw(message)
         if not args:
-            await utils.answer(message, "⚠️ <b>Укажите домен!</b>")
+            await utils.answer(message, "⚠️ <b>Укажите домен!</b>\n\nПример: <code>.tdns google.com</code>")
             return
         
         domain = args.strip()
+        
+        await utils.answer(message, f"🌐 <b>Запрашиваю DNS для {domain}...</b>")
         
         try:
             import dns.resolver
@@ -114,7 +118,7 @@ class TechUtilsMod(loader.Module):
             try:
                 a_records = dns.resolver.resolve(domain, 'A')
                 records_text += "<b>A записи:</b>\n"
-                for record in a_records:
+                for record in a_records[:5]:
                     records_text += f"• {record}\n"
             except:
                 records_text += "<b>A записи:</b> не найдены\n"
@@ -123,7 +127,7 @@ class TechUtilsMod(loader.Module):
             try:
                 mx_records = dns.resolver.resolve(domain, 'MX')
                 records_text += "\n<b>MX записи:</b>\n"
-                for record in mx_records:
+                for record in mx_records[:5]:
                     records_text += f"• {record.exchange} (приоритет: {record.preference})\n"
             except:
                 records_text += "\n<b>MX записи:</b> не найдены\n"
@@ -132,10 +136,19 @@ class TechUtilsMod(loader.Module):
             try:
                 ns_records = dns.resolver.resolve(domain, 'NS')
                 records_text += "\n<b>NS записи:</b>\n"
-                for record in ns_records:
+                for record in ns_records[:5]:
                     records_text += f"• {record}\n"
             except:
                 records_text += "\n<b>NS записи:</b> не найдены\n"
+            
+            # TXT записи
+            try:
+                txt_records = dns.resolver.resolve(domain, 'TXT')
+                records_text += "\n<b>TXT записи:</b>\n"
+                for record in txt_records[:3]:
+                    records_text += f"• {record}\n"
+            except:
+                pass
             
             await self._send_to_tech_chat(
                 message,
@@ -147,38 +160,49 @@ class TechUtilsMod(loader.Module):
         except Exception as e:
             await utils.answer(message, f"❌ <b>Ошибка DNS:</b> {e}")
 
-    async def portscanecmd(self, message: Message):
-        """Сканирование портов: .portscan <host> [start_port] [end_port]"""
+    @loader.command()
+    async def tportcmd(self, message: Message):
+        """Сканирование портов: .tport <host> [start_port] [end_port]"""
         args = utils.get_args_raw(message)
         if not args:
-            await utils.answer(message, "⚠️ <b>Укажите хост!</b>")
+            await utils.answer(message, "⚠️ <b>Укажите хост!</b>\n\nПример: <code>.tport example.com</code> или <code>.tport example.com 80 1000</code>")
             return
         
         parts = args.split()
         host = parts[0]
         
         if len(parts) >= 3:
-            start_port = int(parts[1])
-            end_port = int(parts[2])
-            ports = range(start_port, end_port + 1)
+            try:
+                start_port = int(parts[1])
+                end_port = int(parts[2])
+                ports = range(start_port, min(end_port + 1, start_port + 100))
+            except ValueError:
+                ports = self.config["common_ports"]
         else:
             ports = self.config["common_ports"]
+        
+        await utils.answer(message, f"🔍 <b>Сканирую {host}...</b>")
         
         open_ports = []
         
         for port in ports:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(1)
-            result = sock.connect_ex((host, port))
-            if result == 0:
-                open_ports.append(port)
-            sock.close()
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(1)
+                result = sock.connect_ex((host, port))
+                if result == 0:
+                    open_ports.append(port)
+                sock.close()
+            except:
+                continue
         
         results = ""
         if open_ports:
             results += "<b>Открытые порты:</b>\n"
             for port in open_ports:
-                results += f"✅ {port}\n"
+                # Определяем сервис
+                service = self._get_service_name(port)
+                results += f"✅ {port} {service}\n"
         else:
             results += "❌ <b>Открытых портов не найдено</b>"
         
@@ -187,17 +211,18 @@ class TechUtilsMod(loader.Module):
             f"🔍 <b>Сканирование {host}:</b>\n\n{results}"
         )
 
-    async def convertcmd(self, message: Message):
-        """Конвертация файла: ответьте на файл и напишите .convert <формат>"""
+    @loader.command()
+    async def tconvertcmd(self, message: Message):
+        """Конвертация файла: ответьте на файл и напишите .tconvert <формат>"""
         args = utils.get_args_raw(message)
         reply = await message.get_reply_message()
         
         if not reply or not reply.media:
-            await utils.answer(message, "⚠️ <b>Ответьте на файл!</b>")
+            await utils.answer(message, "⚠️ <b>Ответьте на файл!</b>\n\nПример: ответьте на изображение и напишите <code>.tconvert png</code>")
             return
         
         if not args:
-            await utils.answer(message, "⚠️ <b>Укажите формат: .convert pdf/docx/png/jpg</b>")
+            await utils.answer(message, "⚠️ <b>Укажите формат:</b> <code>.tconvert pdf/docx/png/jpg</code>")
             return
         
         target_format = args.strip().lower()
@@ -209,18 +234,34 @@ class TechUtilsMod(loader.Module):
             file_path = await reply.download_media()
             
             # Конвертация изображений
-            if target_format in ['png', 'jpg', 'jpeg', 'gif', 'bmp']:
+            if target_format in ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']:
                 from PIL import Image
                 
                 img = Image.open(file_path)
+                if target_format == 'jpg':
+                    target_format = 'jpeg'
+                
                 output_path = f"{os.path.splitext(file_path)[0]}.{target_format}"
-                img.save(output_path, target_format.upper())
+                
+                # Конвертируем с учетом прозрачности
+                if target_format in ['jpg', 'jpeg']:
+                    if img.mode in ('RGBA', 'LA'):
+                        background = Image.new('RGB', img.size, (255, 255, 255))
+                        background.paste(img, mask=img.split()[-1])
+                        img = background
+                    img.save(output_path, 'JPEG', quality=95)
+                else:
+                    img.save(output_path, target_format.upper())
                 
                 await self._send_to_tech_chat(
                     message,
                     f"✅ <b>Файл сконвертирован в {target_format.upper()}</b>",
                     output_path
                 )
+                
+                # Удаляем временные файлы
+                if os.path.exists(output_path):
+                    os.remove(output_path)
             
             # Конвертация документов
             elif target_format in ['pdf', 'docx', 'txt']:
@@ -239,12 +280,15 @@ class TechUtilsMod(loader.Module):
                         f"✅ <b>Файл сконвертирован в TXT</b>",
                         output_path
                     )
+                    
+                    if os.path.exists(output_path):
+                        os.remove(output_path)
                 else:
                     await utils.answer(message, f"❌ <b>Конвертация в {target_format} пока не поддерживается</b>")
             else:
                 await utils.answer(message, f"❌ <b>Неподдерживаемый формат: {target_format}</b>")
             
-            # Удаляем временный файл
+            # Удаляем исходный файл
             if os.path.exists(file_path):
                 os.remove(file_path)
                 
@@ -253,11 +297,12 @@ class TechUtilsMod(loader.Module):
         except Exception as e:
             await utils.answer(message, f"❌ <b>Ошибка конвертации:</b> {e}")
 
-    async def screenshotcmd(self, message: Message):
-        """Скриншот сайта: .screenshot <url>"""
+    @loader.command()
+    async def tscreencmd(self, message: Message):
+        """Скриншот сайта: .tscreen <url>"""
         args = utils.get_args_raw(message)
         if not args:
-            await utils.answer(message, "⚠️ <b>Укажите URL!</b>")
+            await utils.answer(message, "⚠️ <b>Укажите URL!</b>\n\nПример: <code>.tscreen example.com</code>")
             return
         
         url = args.strip()
@@ -267,6 +312,28 @@ class TechUtilsMod(loader.Module):
         await utils.answer(message, "📸 <b>Делаю скриншот...</b>")
         
         try:
+            # Пробуем разные методы скриншота
+            screenshot_path = await self._take_screenshot(url)
+            
+            if screenshot_path:
+                await self._send_to_tech_chat(
+                    message,
+                    f"📸 <b>Скриншот {url}</b>",
+                    screenshot_path
+                )
+                
+                if os.path.exists(screenshot_path):
+                    os.remove(screenshot_path)
+            else:
+                await utils.answer(message, "❌ <b>Не удалось сделать скриншот</b>")
+            
+        except Exception as e:
+            await utils.answer(message, f"❌ <b>Ошибка:</b> {e}")
+
+    async def _take_screenshot(self, url):
+        """Делает скриншот сайта"""
+        # Пробуем selenium
+        try:
             from selenium import webdriver
             from selenium.webdriver.chrome.options import Options
             
@@ -274,24 +341,36 @@ class TechUtilsMod(loader.Module):
             chrome_options.add_argument('--headless')
             chrome_options.add_argument('--no-sandbox')
             chrome_options.add_argument('--disable-dev-shm-usage')
+            chrome_options.add_argument('--window-size=1280,720')
             
             driver = webdriver.Chrome(options=chrome_options)
             driver.get(url)
             driver.save_screenshot('screenshot.png')
             driver.quit()
             
-            await self._send_to_tech_chat(
-                message,
-                f"📸 <b>Скриншот {url}</b>",
-                'screenshot.png'
-            )
+            return 'screenshot.png'
+        except:
+            pass
+        
+        # Пробуем pyppeteer
+        try:
+            import asyncio
+            from pyppeteer import launch
             
-            os.remove('screenshot.png')
+            async def take_screenshot():
+                browser = await launch(headless=True)
+                page = await browser.newPage()
+                await page.setViewport({'width': 1280, 'height': 720})
+                await page.goto(url)
+                await page.screenshot({'path': 'screenshot.png'})
+                await browser.close()
             
-        except ImportError:
-            await utils.answer(message, "❌ <b>Установите selenium:</b> <code>pip install selenium</code>")
-        except Exception as e:
-            await utils.answer(message, f"❌ <b>Ошибка:</b> {e}")
+            asyncio.get_event_loop().run_until_complete(take_screenshot())
+            return 'screenshot.png'
+        except:
+            pass
+        
+        return None
 
     async def _send_to_tech_chat(self, message, text, file=None):
         """Отправляет результат в технический чат"""
@@ -315,3 +394,31 @@ class TechUtilsMod(loader.Module):
                 await utils.answer(message, self.strings("no_chats"))
         else:
             await utils.answer(message, self.strings("no_chats"))
+
+    def _get_service_name(self, port):
+        """Возвращает название сервиса по порту"""
+        services = {
+            21: "(FTP)",
+            22: "(SSH)",
+            23: "(Telnet)",
+            25: "(SMTP)",
+            53: "(DNS)",
+            80: "(HTTP)",
+            110: "(POP3)",
+            143: "(IMAP)",
+            443: "(HTTPS)",
+            465: "(SMTPS)",
+            587: "(SMTP)",
+            993: "(IMAPS)",
+            995: "(POP3S)",
+            3306: "(MySQL)",
+            3389: "(RDP)",
+            5432: "(PostgreSQL)",
+            8080: "(HTTP-Alt)",
+        }
+        return services.get(port, "")
+
+    @loader.command()
+    async def techhelpcmd(self, message: Message):
+        """Показать справку по техническим командам"""
+        await utils.answer(message, self.strings("help"))
