@@ -292,7 +292,7 @@ class BioCreatorMod(loader.Module):
         if social:
             bio += f"└── 🔗 {social}\n"
         
-        bio += f"\n✨ <i>Создано с помощью BioCreator</i>"
+
         
         return bio
 
