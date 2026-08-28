@@ -44,13 +44,25 @@ class ModuleCreator(loader.Module):
         "no_repo": (
             "<b><emoji document_id=5467672931176010750>❌</emoji> Репозиторий не выбран!</b>\n\n"
             "<b>Создайте репозиторий командой:</b>\n"
-            "<code>.newrepo</code> <i>название_репозитория</i>"
+            "<code>.newrepo</code> <i>название_репозитория</i>\n"
+            "<b>Или выберите существующий:</b>\n"
+            "<code>.selectrepo</code> <i>название_репозитория</i>"
         ),
         
         "repo_created": (
             "<b><emoji document_id=5467906724422622902>✅</emoji> Репозиторий создан!</b>\n\n"
             "<b>Название:</b> <code>{}</code>\n"
             "<b>URL:</b> <code>{}</code>"
+        ),
+        
+        "repo_deleted": (
+            "<b><emoji document_id=5467906724422622902>✅</emoji> Репозиторий удален!</b>\n\n"
+            "<b>Название:</b> <code>{}</code>"
+        ),
+        
+        "repo_not_found": (
+            "<b><emoji document_id=5467672931176010750>❌</emoji> Репозиторий не найден!</b>\n\n"
+            "<b>Проверьте название:</b> <code>{}</code>"
         ),
         
         "module_creating": "<b><emoji document_id=5326015457155620929>🔄</emoji> Создаю модуль...</b>",
@@ -63,11 +75,43 @@ class ModuleCreator(loader.Module):
             "<code>{}</code>"
         ),
         
+        "module_deleted": (
+            "<b><emoji document_id=5467906724422622902>✅</emoji> Модуль удален!</b>\n\n"
+            "<b>Файл:</b> <code>{}</code>\n"
+            "<b>Репозиторий:</b> <code>{}</code>"
+        ),
+        
+        "module_not_found": (
+            "<b><emoji document_id=5467672931176010750>❌</emoji> Модуль не найден!</b>\n\n"
+            "<b>Проверьте название файла:</b> <code>{}</code>"
+        ),
+        
         "creating_repo": "<b><emoji document_id=5326015457155620929>🔄</emoji> Создаю репозиторий...</b>",
         
         "repos_list": "<b><emoji document_id=5431577498364158238>📊</emoji> Ваши репозитории:</b>\n\n{}",
         
         "repo_selected": "<b><emoji document_id=5467906724422622902>✅</emoji> Репозиторий выбран:</b>\n<code>{}</code>",
+        
+        "modules_list": "<b><emoji document_id=5431577498364158238>📊</emoji> Модули в репозитории {}:</b>\n\n{}",
+        
+        "no_modules": "<b><emoji document_id=5431577498364158238>📊</emoji> В репозитории нет модулей</b>",
+        
+        "editing_module": "<b><emoji document_id=5326015457155620929>🔄</emoji> Открываю редактор модуля...</b>",
+        
+        "module_updated": (
+            "<b><emoji document_id=5467906724422622902>✅</emoji> Модуль обновлен!</b>\n\n"
+            "<b>Файл:</b> <code>{}</code>"
+        ),
+        
+        "edit_cancelled": "<b><emoji document_id=5467672931176010750>❌</emoji> Редактирование отменено</b>",
+        
+        "edit_timeout": "<b><emoji document_id=5467672931176010750>❌</emoji> Время редактирования истекло</b>",
+        
+        "edit_prompt": (
+            "<b><emoji document_id=5431577498364158238>📝</emoji> Редактирование модуля:</b> <code>{}</code>\n\n"
+            "<b>Отправьте новый код модуля.</b>\n"
+            "<b>Для отмены отправьте:</b> <code>.cancel</code>"
+        ),
     }
 
     def __init__(self):
@@ -85,6 +129,7 @@ class ModuleCreator(loader.Module):
                 validator=loader.validators.String()
             ),
         )
+        self._editing = {}
 
     async def client_ready(self, client, db):
         self.db = db
@@ -109,6 +154,16 @@ class ModuleCreator(loader.Module):
             elif method == "PUT":
                 async with session.put(url, headers=headers, json=data) as response:
                     return await response.json(), response.status
+            elif method == "DELETE":
+                async with session.delete(url, headers=headers) as response:
+                    return response.status
+
+    async def _get_username(self):
+        """Получить username пользователя"""
+        user_data, status = await self._github_request("GET", "https://api.github.com/user")
+        if status == 200:
+            return user_data.get('login')
+        return None
 
     @loader.command()
     async def ghauth(self, message):
@@ -173,6 +228,38 @@ class ModuleCreator(loader.Module):
             )
         else:
             await utils.answer(message, f"<b>Ошибка создания репозитория:</b> <code>{repo_data.get('message', 'Unknown error')}</code>")
+
+    @loader.command()
+    async def delrep(self, message):
+        """Удалить репозиторий"""
+        
+        if not self.config['github_token']:
+            await utils.answer(message, self.strings['not_authorized'])
+            return
+            
+        args = utils.get_args_raw(message)
+        if not args:
+            await utils.answer(message, "<b>Использование:</b> <code>.delrep название_репозитория</code>")
+            return
+            
+        username = await self._get_username()
+        if not username:
+            await utils.answer(message, self.strings['auth_error'])
+            return
+            
+        status = await self._github_request(
+            "DELETE",
+            f"https://api.github.com/repos/{username}/{args}"
+        )
+        
+        if status == 204:
+            if self.config['current_repo'] == args:
+                self.config['current_repo'] = None
+            await utils.answer(message, self.strings['repo_deleted'].format(args))
+        elif status == 404:
+            await utils.answer(message, self.strings['repo_not_found'].format(args))
+        else:
+            await utils.answer(message, f"<b>Ошибка удаления репозитория. Статус:</b> <code>{status}</code>")
 
     @loader.command()
     async def repos(self, message):
@@ -251,8 +338,10 @@ class ModuleCreator(loader.Module):
         module_code = self._generate_module_code(module_name, description, command)
         
         # Получаем username для репозитория
-        user_data, _ = await self._github_request("GET", "https://api.github.com/user")
-        username = user_data.get('login', 'user')
+        username = await self._get_username()
+        if not username:
+            await utils.answer(message, self.strings['auth_error'])
+            return
         
         # Создаем файл в репозитории
         filename = f"{module_name.lower()}.py"
@@ -279,6 +368,216 @@ class ModuleCreator(loader.Module):
                 message,
                 f"<b>Ошибка создания модуля:</b> <code>{file_data.get('message', 'Unknown error')}</code>"
             )
+
+    @loader.command()
+    async def delmod(self, message):
+        """Удалить модуль из репозитория"""
+        
+        if not self.config['github_token']:
+            await utils.answer(message, self.strings['not_authorized'])
+            return
+            
+        if not self.config['current_repo']:
+            await utils.answer(message, self.strings['no_repo'])
+            return
+            
+        args = utils.get_args_raw(message)
+        if not args:
+            await utils.answer(message, "<b>Использование:</b> <code>.delmod название_файла.py</code>")
+            return
+            
+        filename = args if args.endswith('.py') else f"{args}.py"
+        
+        username = await self._get_username()
+        if not username:
+            await utils.answer(message, self.strings['auth_error'])
+            return
+            
+        # Получаем информацию о файле
+        file_data, status = await self._github_request(
+            "GET",
+            f"https://api.github.com/repos/{username}/{self.config['current_repo']}/contents/{filename}"
+        )
+        
+        if status == 404:
+            await utils.answer(message, self.strings['module_not_found'].format(filename))
+            return
+            
+        if status != 200:
+            await utils.answer(message, f"<b>Ошибка получения файла:</b> <code>{file_data.get('message', 'Unknown error')}</code>")
+            return
+            
+        # Удаляем файл
+        delete_status = await self._github_request(
+            "DELETE",
+            f"https://api.github.com/repos/{username}/{self.config['current_repo']}/contents/{filename}",
+            {
+                "message": f"Delete {filename}",
+                "sha": file_data['sha']
+            }
+        )
+        
+        if delete_status == 200:
+            await utils.answer(message, self.strings['module_deleted'].format(filename, self.config['current_repo']))
+        else:
+            await utils.answer(message, f"<b>Ошибка удаления модуля. Статус:</b> <code>{delete_status}</code>")
+
+    @loader.command()
+    async def modlist(self, message):
+        """Список модулей в репозитории"""
+        
+        if not self.config['github_token']:
+            await utils.answer(message, self.strings['not_authorized'])
+            return
+            
+        if not self.config['current_repo']:
+            await utils.answer(message, self.strings['no_repo'])
+            return
+            
+        username = await self._get_username()
+        if not username:
+            await utils.answer(message, self.strings['auth_error'])
+            return
+            
+        # Получаем список файлов
+        files_data, status = await self._github_request(
+            "GET",
+            f"https://api.github.com/repos/{username}/{self.config['current_repo']}/contents/"
+        )
+        
+        if status != 200:
+            await utils.answer(message, f"<b>Ошибка получения файлов:</b> <code>{files_data.get('message', 'Unknown error')}</code>")
+            return
+            
+        # Фильтруем только .py файлы
+        modules = []
+        for file in files_data:
+            if file['name'].endswith('.py'):
+                # Получаем описание модуля
+                file_content, content_status = await self._github_request(
+                    "GET",
+                    file['url']
+                )
+                
+                description = "Нет описания"
+                if content_status == 200:
+                    content = file_content.get('content', '')
+                    if content:
+                        try:
+                            import base64
+                            decoded_content = base64.b64decode(content).decode('utf-8')
+                            # Ищем описание в коде
+                            desc_match = re.search(r'# Description: (.+)', decoded_content)
+                            if desc_match:
+                                description = desc_match.group(1)
+                        except:
+                            pass
+                
+                modules.append(f"• <code>{file['name']}</code> - {description}")
+        
+        if modules:
+            await utils.answer(
+                message,
+                self.strings['modules_list'].format(self.config['current_repo'], '\n'.join(modules))
+            )
+        else:
+            await utils.answer(message, self.strings['no_modules'])
+
+    @loader.command()
+    async def editmod(self, message):
+        """Редактировать модуль"""
+        
+        if not self.config['github_token']:
+            await utils.answer(message, self.strings['not_authorized'])
+            return
+            
+        if not self.config['current_repo']:
+            await utils.answer(message, self.strings['no_repo'])
+            return
+            
+        args = utils.get_args_raw(message)
+        if not args:
+            await utils.answer(message, "<b>Использование:</b> <code>.editmod название_файла.py</code>")
+            return
+            
+        filename = args if args.endswith('.py') else f"{args}.py"
+        
+        username = await self._get_username()
+        if not username:
+            await utils.answer(message, self.strings['auth_error'])
+            return
+            
+        # Проверяем существование файла
+        file_data, status = await self._github_request(
+            "GET",
+            f"https://api.github.com/repos/{username}/{self.config['current_repo']}/contents/{filename}"
+        )
+        
+        if status == 404:
+            await utils.answer(message, self.strings['module_not_found'].format(filename))
+            return
+            
+        if status != 200:
+            await utils.answer(message, f"<b>Ошибка получения файла:</b> <code>{file_data.get('message', 'Unknown error')}</code>")
+            return
+            
+        # Сохраняем информацию о файле для редактирования
+        self._editing[message.from_id] = {
+            'filename': filename,
+            'sha': file_data['sha'],
+            'started': datetime.now()
+        }
+        
+        await utils.answer(message, self.strings['edit_prompt'].format(filename))
+
+    @loader.watcher()
+    async def watcher(self, message):
+        """Обработчик для редактирования модулей"""
+        
+        if message.from_id not in self._editing:
+            return
+            
+        edit_info = self._editing[message.from_id]
+        
+        # Проверяем на отмену
+        if message.text.lower() == '.cancel':
+            del self._editing[message.from_id]
+            await utils.answer(message, self.strings['edit_cancelled'])
+            return
+            
+        # Проверяем на таймаут (5 минут)
+        time_diff = (datetime.now() - edit_info['started']).total_seconds()
+        if time_diff > 300:
+            del self._editing[message.from_id]
+            await utils.answer(message, self.strings['edit_timeout'])
+            return
+            
+        # Получаем код модуля
+        module_code = message.text
+        
+        username = await self._get_username()
+        if not username:
+            await utils.answer(message, self.strings['auth_error'])
+            return
+            
+        # Обновляем файл
+        file_data, status = await self._github_request(
+            "PUT",
+            f"https://api.github.com/repos/{username}/{self.config['current_repo']}/contents/{edit_info['filename']}",
+            {
+                "message": f"Update {edit_info['filename']}",
+                "content": module_code.encode('utf-8').hex(),
+                "sha": edit_info['sha']
+            }
+        )
+        
+        if status in [200, 201]:
+            await utils.answer(message, self.strings['module_updated'].format(edit_info['filename']))
+        else:
+            await utils.answer(message, f"<b>Ошибка обновления модуля:</b> <code>{file_data.get('message', 'Unknown error')}</code>")
+            
+        # Удаляем из списка редактирования
+        del self._editing[message.from_id]
 
     def _generate_module_code(self, module_name, description, command):
         """Генерация кода модуля"""
