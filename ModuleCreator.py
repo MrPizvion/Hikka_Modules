@@ -7,6 +7,7 @@
 import asyncio
 import logging
 import re
+import base64
 from datetime import datetime
 
 from .. import loader, utils
@@ -130,39 +131,41 @@ class ModuleCreator(loader.Module):
             ),
         )
         self._editing = {}
+        self._username = None
+        self._session = None
 
     async def client_ready(self, client, db):
         self.db = db
         self._client = client
+        import aiohttp
+        self._session = aiohttp.ClientSession()
+
+    async def _get_headers(self):
+        """Получить заголовки для запросов"""
+        return {
+            "Authorization": f"token {self.config['github_token']}",
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "Hikka-ModuleCreator"
+        }
 
     async def _github_request(self, method, url, data=None):
         """Выполнить запрос к GitHub API"""
-        import aiohttp
+        headers = await self._get_headers()
         
-        headers = {
-            "Authorization": f"token {self.config['github_token']}",
-            "Accept": "application/vnd.github.v3+json"
-        }
-        
-        async with aiohttp.ClientSession() as session:
-            if method == "GET":
-                async with session.get(url, headers=headers) as response:
-                    return await response.json(), response.status
-            elif method == "POST":
-                async with session.post(url, headers=headers, json=data) as response:
-                    return await response.json(), response.status
-            elif method == "PUT":
-                async with session.put(url, headers=headers, json=data) as response:
-                    return await response.json(), response.status
-            elif method == "DELETE":
-                async with session.delete(url, headers=headers) as response:
-                    return response.status
+        async with self._session.request(method, url, headers=headers, json=data) as response:
+            if method == "DELETE":
+                return None, response.status
+            return await response.json(), response.status
 
-    async def _get_username(self):
-        """Получить username пользователя"""
+    async def _get_username(self, force=False):
+        """Получить username пользователя (кэшируется)"""
+        if self._username and not force:
+            return self._username
+            
         user_data, status = await self._github_request("GET", "https://api.github.com/user")
         if status == 200:
-            return user_data.get('login')
+            self._username = user_data.get('login')
+            return self._username
         return None
 
     @loader.command()
@@ -175,15 +178,16 @@ class ModuleCreator(loader.Module):
             return
             
         self.config['github_token'] = args
+        self._username = None  # Сбрасываем кэш
         
         # Проверяем токен
-        user_data, status = await self._github_request("GET", "https://api.github.com/user")
+        username = await self._get_username(force=True)
         
-        if status == 200:
+        if username:
             await utils.answer(
                 message,
                 self.strings['auth_success'].format(
-                    user_data.get('login', 'Unknown'),
+                    username,
                     self.config['current_repo'] or 'Не выбран'
                 )
             )
@@ -247,7 +251,7 @@ class ModuleCreator(loader.Module):
             await utils.answer(message, self.strings['auth_error'])
             return
             
-        status = await self._github_request(
+        _, status = await self._github_request(
             "DELETE",
             f"https://api.github.com/repos/{username}/{args}"
         )
@@ -269,11 +273,11 @@ class ModuleCreator(loader.Module):
             await utils.answer(message, self.strings['not_authorized'])
             return
             
-        repos_data, status = await self._github_request("GET", "https://api.github.com/user/repos")
+        repos_data, status = await self._github_request("GET", "https://api.github.com/user/repos?per_page=50")
         
         if status == 200:
             repos_text = []
-            for repo in repos_data[:20]:  # Показываем первые 20
+            for repo in repos_data:
                 repos_text.append(f"• <code>{repo['name']}</code> - {repo.get('description', 'Нет описания')}")
             
             await utils.answer(
@@ -319,7 +323,6 @@ class ModuleCreator(loader.Module):
             )
             return
             
-        # Разбираем аргументы
         parts = args.split('|')
         if len(parts) < 3:
             await utils.answer(
@@ -334,23 +337,20 @@ class ModuleCreator(loader.Module):
         
         await utils.answer(message, self.strings['module_creating'])
         
-        # Генерируем код модуля
         module_code = self._generate_module_code(module_name, description, command)
         
-        # Получаем username для репозитория
         username = await self._get_username()
         if not username:
             await utils.answer(message, self.strings['auth_error'])
             return
         
-        # Создаем файл в репозитории
         filename = f"{module_name.lower()}.py"
         file_data, status = await self._github_request(
             "PUT",
             f"https://api.github.com/repos/{username}/{self.config['current_repo']}/contents/{filename}",
             {
                 "message": f"Add {filename} module",
-                "content": module_code.encode('utf-8').hex()
+                "content": base64.b64encode(module_code.encode('utf-8')).decode('ascii')
             }
         )
         
@@ -407,8 +407,8 @@ class ModuleCreator(loader.Module):
             await utils.answer(message, f"<b>Ошибка получения файла:</b> <code>{file_data.get('message', 'Unknown error')}</code>")
             return
             
-        # Удаляем файл
-        delete_status = await self._github_request(
+        # Удаляем файл с правильным форматом данных
+        _, delete_status = await self._github_request(
             "DELETE",
             f"https://api.github.com/repos/{username}/{self.config['current_repo']}/contents/{filename}",
             {
@@ -449,31 +449,28 @@ class ModuleCreator(loader.Module):
             await utils.answer(message, f"<b>Ошибка получения файлов:</b> <code>{files_data.get('message', 'Unknown error')}</code>")
             return
             
-        # Фильтруем только .py файлы
-        modules = []
-        for file in files_data:
-            if file['name'].endswith('.py'):
-                # Получаем описание модуля
-                file_content, content_status = await self._github_request(
-                    "GET",
-                    file['url']
-                )
-                
-                description = "Нет описания"
-                if content_status == 200:
-                    content = file_content.get('content', '')
-                    if content:
-                        try:
-                            import base64
-                            decoded_content = base64.b64decode(content).decode('utf-8')
-                            # Ищем описание в коде
-                            desc_match = re.search(r'# Description: (.+)', decoded_content)
-                            if desc_match:
-                                description = desc_match.group(1)
-                        except:
-                            pass
-                
-                modules.append(f"• <code>{file['name']}</code> - {description}")
+        # Создаем задачи для параллельного получения описаний
+        tasks = []
+        py_files = [f for f in files_data if f['name'].endswith('.py')]
+        
+        async def get_module_info(file):
+            file_content, content_status = await self._github_request("GET", file['url'])
+            description = "Нет описания"
+            if content_status == 200:
+                content = file_content.get('content', '')
+                if content:
+                    try:
+                        decoded_content = base64.b64decode(content).decode('utf-8')
+                        desc_match = re.search(r'# Description: (.+)', decoded_content)
+                        if desc_match:
+                            description = desc_match.group(1)
+                    except:
+                        pass
+            return f"• <code>{file['name']}</code> - {description}"
+        
+        # Параллельно получаем описания
+        tasks = [get_module_info(file) for file in py_files]
+        modules = await asyncio.gather(*tasks)
         
         if modules:
             await utils.answer(
@@ -566,7 +563,7 @@ class ModuleCreator(loader.Module):
             f"https://api.github.com/repos/{username}/{self.config['current_repo']}/contents/{edit_info['filename']}",
             {
                 "message": f"Update {edit_info['filename']}",
-                "content": module_code.encode('utf-8').hex(),
+                "content": base64.b64encode(module_code.encode('utf-8')).decode('ascii'),
                 "sha": edit_info['sha']
             }
         )
